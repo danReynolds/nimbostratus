@@ -45,7 +45,7 @@ enum WritePolicy {
   /// Specifies that the data should be written only to the cache and not persisted to the server.
   cacheOnly,
 
-  /// Specifies that the data should be written to the cache and server simultaneously. If the write to the server fails, the write to the cache will be rolled back.
+  /// Specifies that the data should be written to the cache and server simultaneously. If the write to the server fails, then the write to the cache will be rolled back.
   cacheAndServer,
 
   // Specifies that the data should be written to the server first, followed by the cache when the write to the server completes.

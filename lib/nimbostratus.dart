@@ -163,11 +163,21 @@ class Nimbostratus {
         final snap = await ref.get(const GetOptions(source: Source.cache));
         return _updateDocBloc(snap);
       case WritePolicy.cacheAndServer:
-        final values = await Future.wait([
-          setDocument(ref, data, writePolicy: WritePolicy.cacheOnly),
-          setDocument(ref, data, writePolicy: WritePolicy.serverFirst)
-        ]);
-        return values[1];
+        final oldSnap =
+            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+
+        try {
+          final values = await Future.wait([
+            setDocument(ref, data, writePolicy: WritePolicy.cacheOnly),
+            setDocument(ref, data, writePolicy: WritePolicy.serverFirst)
+          ]);
+          return values[1];
+        } catch (e) {
+          // On a server error, rollback the cache change and rethrow.
+          _updateDocBloc(oldSnap);
+          rethrow;
+        }
+
       case WritePolicy.cacheOnly:
         try {
           final snap =
@@ -207,20 +217,32 @@ class Nimbostratus {
             final snap = await ref.get(const GetOptions(source: Source.cache));
             _updateDocBloc(snap);
           });
-          return getDocument(ref, fetchPolicy: GetFetchPolicy.cacheFirst);
+          return getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
         } else {
           await ref.update(serializedData);
           final snap = await ref.get(const GetOptions(source: Source.cache));
           return _updateDocBloc(snap);
         }
       case WritePolicy.cacheAndServer:
-        await updateDocument(ref, data, writePolicy: WritePolicy.cacheOnly);
-        return updateDocument(
-          ref,
-          data,
-          writePolicy: WritePolicy.serverFirst,
-          toFirestore: toFirestore,
-        );
+        final oldSnap =
+            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+        try {
+          final values = await Future.wait([
+            updateDocument(ref, data, writePolicy: WritePolicy.cacheOnly),
+            updateDocument(
+              ref,
+              data,
+              writePolicy: WritePolicy.serverFirst,
+              toFirestore: toFirestore,
+            )
+          ]);
+          return values[1];
+        } catch (e) {
+          // If an error is encountered when trying to update the data on the server,
+          // rollback the cache change and rethrow the error.
+          _updateDocBloc(oldSnap);
+          rethrow;
+        }
       case WritePolicy.cacheOnly:
         try {
           final snap =
