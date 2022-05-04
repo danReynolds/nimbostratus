@@ -1,5 +1,5 @@
 name: nimbostratus
-description: A new Flutter package project.
+description: Nimbostratus is a reactive data-fetching and state management library built on top of Cloud Firestore.
 version: 0.0.1
 homepage:
 
@@ -8,13 +8,18 @@ environment:
   flutter: ">=1.17.0"
 
 dependencies:
+  cloud_firestore: ^3.1.13
+  collection: ^1.15.0
   flutter:
     sdk: flutter
+  restate: ^0.3.0
+  rxdart: ^0.27.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^1.0.0
+  fake_cloud_firestore_with_metadata: ^1.3.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
