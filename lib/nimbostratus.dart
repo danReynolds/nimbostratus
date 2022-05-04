@@ -277,6 +277,15 @@ class Nimbostratus {
     );
   }
 
+  // Deletes a Firestore document from the server and removes it from the in-memory cache.
+  Future<void> deleteDocument<T>(
+    DocumentReference<T> ref,
+  ) async {
+    final snap = await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+    await ref.delete();
+    _updateDocBloc(snap.copyWith(value: null));
+  }
+
   /// Retrieves a Firestore document from the in-memory cache or server according to the specified [GetFetchPolicy].
   Future<NimbostratusDocumentSnapshot<T?>> getDocument<T>(
     DocumentReference<T> docRef, {

@@ -2549,6 +2549,41 @@ void main() async {
     });
   });
 
+  group('deleteDocument', () {
+    test('should remove the document from the cache', () async {
+      final docRef = store.collection('users').doc('alice');
+
+      await docRef.set({
+        "name": 'alice',
+        "sources": [Source.cache.name, Source.server.name],
+      });
+
+      final stream = Nimbostratus.instance
+          .streamDocument(
+            docRef,
+            fetchPolicy: StreamFetchPolicy.cacheOnly,
+          )
+          .asBroadcastStream();
+
+      expectLater(
+        stream.map((snap) => snap.data()),
+        emitsInOrder(
+          [
+            {
+              "name": 'alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            null
+          ],
+        ),
+      );
+
+      await stream.first;
+
+      await Nimbostratus.instance.deleteDocument(docRef);
+    });
+  });
+
   group('batchUpdateDocuments', () {
     group('with server-first changes', () {
       test('should write all cache updates after the commit', () async {
