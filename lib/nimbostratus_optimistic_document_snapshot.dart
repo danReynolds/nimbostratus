@@ -11,7 +11,7 @@ class NimbostratusOptimisticDocumentSnapshot<T>
     required T? value,
     required Stream<NimbostratusDocumentSnapshot<T?>> stream,
     required DocumentReference<T> reference,
-    required SnapshotMetadata metadata,
+    required SnapshotMetadata? metadata,
   }) : super(
           reference: reference,
           stream: stream,

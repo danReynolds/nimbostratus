@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nimbostratus/nimbostratus.dart';
+import 'package:nimbostratus/nimbostratus_optimistic_document_snapshot.dart';
 import 'package:nimbostratus/nimbostratus_state_bloc.dart';
 
 /// An extension of the [WriteBatch] with support for making changes and rolling back
@@ -54,17 +55,7 @@ class NimbostratusUpdateBatcher {
         _firestore = firestore,
         _batch = NimbostratusWriteBatch(batch: firestore.batch());
 
-  final Map<String, NimbostratusDocumentSnapshot<dynamic>> _batchChanges = {};
-
-  Future<void> _recordRollback<T>(DocumentReference<T> ref) async {
-    final snap = await Nimbostratus.instance
-        .getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-    final refPath = snap.reference.path;
-
-    if (_batchChanges[refPath] == null) {
-      _batchChanges[refPath] = snap;
-    }
-  }
+  final List<NimbostratusOptimisticDocumentSnapshot> _optimisticSnaps = [];
 
   Future<NimbostratusDocumentSnapshot<T?>> modify<T>(
     DocumentReference<T> ref,
@@ -72,14 +63,16 @@ class NimbostratusUpdateBatcher {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
   }) async {
-    _recordRollback(ref);
-    return store.modifyDocument<T>(
+    final snap = await store.modifyDocument<T>(
       ref,
       modifyFn,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       batch: _batch,
-    );
+      isOptimistic: true,
+    ) as NimbostratusOptimisticDocumentSnapshot<T?>;
+    _optimisticSnaps.add(snap);
+    return snap;
   }
 
   Future<NimbostratusDocumentSnapshot<T?>> update<T>(
@@ -87,15 +80,17 @@ class NimbostratusUpdateBatcher {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
-  }) {
-    _recordRollback(ref);
-    return store.updateDocument<T>(
+  }) async {
+    final snap = await store.updateDocument<T>(
       ref,
       data,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       batch: _batch,
-    );
+      isOptimistic: true,
+    ) as NimbostratusOptimisticDocumentSnapshot<T?>;
+    _optimisticSnaps.add(snap);
+    return snap;
   }
 
   Future<void> commit() async {
@@ -104,9 +99,8 @@ class NimbostratusUpdateBatcher {
 
   void rollback() {
     _batch = NimbostratusWriteBatch(batch: _firestore.batch());
-    _batchChanges.forEach((key, value) {
-      _documents[key]!.add(value);
-    });
-    _batchChanges.clear();
+    for (final optimisticSnap in _optimisticSnaps) {
+      _documents[optimisticSnap.reference.path]!.rollback(optimisticSnap);
+    }
   }
 }

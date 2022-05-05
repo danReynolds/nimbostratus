@@ -39,16 +39,24 @@ class Nimbostratus {
     required T? value,
     required DocumentReference<T> reference,
     SnapshotMetadata? metadata,
+    bool isOptimistic = false,
   }) {
     final bloc = NimbostratusStateBloc<T?>();
     _documents[reference.path] = bloc;
     bloc.add(
-      NimbostratusDocumentSnapshot<T>(
-        reference: reference,
-        metadata: metadata,
-        value: value,
-        stream: bloc.nonNullStream,
-      ),
+      isOptimistic
+          ? NimbostratusOptimisticDocumentSnapshot<T?>(
+              reference: reference,
+              metadata: metadata,
+              value: value,
+              stream: bloc.nonNullStream,
+            )
+          : NimbostratusDocumentSnapshot<T?>(
+              reference: reference,
+              metadata: metadata,
+              value: value,
+              stream: bloc.nonNullStream,
+            ),
     );
     return bloc;
   }
@@ -79,7 +87,7 @@ class Nimbostratus {
     if (!deepEq(previousSnap?.data(), snapData)) {
       docBloc.add(
         isOptimistic
-            ? NimbostratusOptimisticDocumentSnapshot(
+            ? NimbostratusOptimisticDocumentSnapshot<T?>(
                 value: snapData,
                 reference: snap.reference,
                 metadata: snap.metadata,
@@ -233,13 +241,13 @@ class Nimbostratus {
           batch.update(ref, serializedData);
           batch.onCommit(() async {
             final snap = await ref.get(const GetOptions(source: Source.cache));
-            _updateDocBloc(snap);
+            _updateDocBloc(snap, isOptimistic: isOptimistic);
           });
           return getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
         } else {
           await ref.update(serializedData);
           final snap = await ref.get(const GetOptions(source: Source.cache));
-          return _updateDocBloc(snap);
+          return _updateDocBloc(snap, isOptimistic: isOptimistic);
         }
       case WritePolicy.cacheAndServer:
         final cachedSnap = await updateDocument(
@@ -269,7 +277,8 @@ class Nimbostratus {
           return _updateDocBloc(snap.withValue(data));
           // An exception is thrown if the document doesn't yet exist in the cache.
         } on FirebaseException {
-          return _createDocBloc(value: data, reference: ref).value!;
+          return _createDocBloc(value: data, reference: ref, isOptimistic: true)
+              .value!;
         }
     }
   }
@@ -283,6 +292,7 @@ class Nimbostratus {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
+    bool isOptimistic = false,
   }) async {
     final snap =
         await getDocument<T>(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
@@ -293,6 +303,7 @@ class Nimbostratus {
       toFirestore: toFirestore,
       writePolicy: writePolicy,
       batch: batch,
+      isOptimistic: isOptimistic,
     );
   }
 
