@@ -3,11 +3,10 @@ library nimbostratus;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:nimbostratus/nimbostratus_document_snapshot.dart';
+import 'package:nimbostratus/nimbostratus_state_bloc.dart';
 import 'package:nimbostratus/nimbostratus_update_batcher.dart';
-import 'package:nimbostratus/null_snapshot_metadata.dart';
 import 'package:nimbostratus/policies.dart';
 import 'package:nimbostratus/utils.dart';
-import 'package:restate/restate.dart';
 import 'package:rxdart/rxdart.dart';
 
 export './nimbostratus_document_snapshot.dart';
@@ -23,7 +22,7 @@ class Nimbostratus {
 
   static final instance = Nimbostratus._();
 
-  final Map<String, StateBloc<NimbostratusDocumentSnapshot>> _documents = {};
+  final Map<String, NimbostratusStateBloc> _documents = {};
 
   /// Set the internal Firebase store used to interact with the cloud_firestore APIs.
   /// Used in tests to mock out the store.
@@ -35,39 +34,46 @@ class Nimbostratus {
     return _firestore ?? FirebaseFirestore.instance;
   }
 
-  StateBloc<NimbostratusDocumentSnapshot<T?>> _createDocBloc<T>({
+  void _rollbackOptimisticUpdate<T>(NimbostratusDocumentSnapshot<T?> snap) {
+    final refPath = snap.reference.path;
+    _documents[refPath]!.rollback(snap);
+  }
+
+  NimbostratusStateBloc<T?> _createDocBloc<T>({
     required T? value,
     required DocumentReference<T> reference,
     SnapshotMetadata? metadata,
+    bool isOptimistic = false,
   }) {
-    final bloc = StateBloc<NimbostratusDocumentSnapshot<T?>>();
+    final bloc = NimbostratusStateBloc<T?>();
     _documents[reference.path] = bloc;
     bloc.add(
-      NimbostratusDocumentSnapshot<T>(
+      NimbostratusDocumentSnapshot<T?>(
         reference: reference,
-        metadata: metadata ?? NullSnapshotMetadata(),
+        metadata: metadata,
         value: value,
         stream: bloc.nonNullStream,
+        isOptimistic: isOptimistic,
       ),
     );
     return bloc;
   }
 
   NimbostratusDocumentSnapshot<T?> _updateDocBloc<T>(
-    DocumentSnapshot<T?> snap,
-  ) {
+    DocumentSnapshot<T?> snap, {
+    bool isOptimistic = false,
+  }) {
     final refPath = snap.reference.path;
 
     if (_documents[refPath] == null) {
-      _createDocBloc(
+      return _createDocBloc(
         value: snap.data(),
         reference: snap.reference,
         metadata: snap.metadata,
-      );
+      ).value!;
     }
 
-    final docBloc =
-        _documents[refPath]! as StateBloc<NimbostratusDocumentSnapshot<T?>>;
+    final docBloc = _documents[refPath]! as NimbostratusStateBloc<T?>;
     final previousSnap = docBloc.value;
     final snapData = snap.data();
 
@@ -78,6 +84,7 @@ class Nimbostratus {
           reference: snap.reference,
           metadata: snap.metadata,
           stream: docBloc.nonNullStream,
+          isOptimistic: isOptimistic,
         ),
       );
     }
@@ -125,9 +132,10 @@ class Nimbostratus {
     Future<void> Function(NimbostratusUpdateBatcher batcher) updateCallback,
   ) async {
     final batcher = NimbostratusUpdateBatcher(
-      store: this,
       firestore: firestore,
       documents: _documents,
+      update: _updateDocument,
+      modify: _modifyDocument,
     );
 
     try {
@@ -156,6 +164,21 @@ class Nimbostratus {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     SetOptions? options,
+  }) {
+    return _setDocument(
+      ref,
+      data,
+      writePolicy: writePolicy,
+      options: options,
+    );
+  }
+
+  Future<NimbostratusDocumentSnapshot<T?>> _setDocument<T>(
+    DocumentReference<T> ref,
+    T data, {
+    WritePolicy writePolicy = WritePolicy.serverFirst,
+    SetOptions? options,
+    bool isOptimistic = false,
   }) async {
     switch (writePolicy) {
       case WritePolicy.serverFirst:
@@ -163,18 +186,22 @@ class Nimbostratus {
         final snap = await ref.get(const GetOptions(source: Source.cache));
         return _updateDocBloc(snap);
       case WritePolicy.cacheAndServer:
-        final oldSnap =
-            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-
+        final cachedSnap = await _setDocument(
+          ref,
+          data,
+          writePolicy: WritePolicy.cacheOnly,
+          isOptimistic: true,
+        );
         try {
-          final values = await Future.wait([
-            setDocument(ref, data, writePolicy: WritePolicy.cacheOnly),
-            setDocument(ref, data, writePolicy: WritePolicy.serverFirst)
-          ]);
-          return values[1];
+          final serverSnap = await _setDocument(
+            ref,
+            data,
+            writePolicy: WritePolicy.serverFirst,
+          );
+          return serverSnap;
         } catch (e) {
-          // On a server error, rollback the cache change and rethrow.
-          _updateDocBloc(oldSnap);
+          // On a server error, rollback the optimistic update and rethrow.
+          _rollbackOptimisticUpdate(cachedSnap);
           rethrow;
         }
 
@@ -182,10 +209,17 @@ class Nimbostratus {
         try {
           final snap =
               await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-          return _updateDocBloc(snap.copyWith(value: data));
+          return _updateDocBloc(
+            snap.withValue(setMerge(snap.data(), data, options)),
+            isOptimistic: isOptimistic,
+          );
           // An exception is thrown if the document doesn't yet exist in the cache.
         } on FirebaseException {
-          return _createDocBloc(value: data, reference: ref).value!;
+          return _createDocBloc(
+            value: data,
+            reference: ref,
+            isOptimistic: isOptimistic,
+          ).value!;
         }
     }
   }
@@ -196,24 +230,30 @@ class Nimbostratus {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
+  }) {
+    return _updateDocument(
+      ref,
+      data,
+      writePolicy: writePolicy,
+      toFirestore: toFirestore,
+    );
+  }
+
+  Future<NimbostratusDocumentSnapshot<T?>> _updateDocument<T>(
+    DocumentReference<T> ref,
+    T data, {
+    WritePolicy writePolicy = WritePolicy.serverFirst,
+    ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
+    bool isOptimistic = false,
   }) async {
     switch (writePolicy) {
       case WritePolicy.serverFirst:
-        Map<String, dynamic> serializedData;
+        final serializedData = serializeData(data, toFirestore);
 
-        if (data is Map<String, dynamic>) {
-          serializedData = data;
-        } else {
-          assert(
-            toFirestore != null,
-            'A toFirestore function must be provivded for converted-type server updates.',
-          );
-          serializedData = toFirestore!(data, null);
-        }
         if (batch != null) {
           batch.update(ref, serializedData);
-          batch.addListener(() async {
+          batch.onCommit(() async {
             final snap = await ref.get(const GetOptions(source: Source.cache));
             _updateDocBloc(snap);
           });
@@ -224,33 +264,43 @@ class Nimbostratus {
           return _updateDocBloc(snap);
         }
       case WritePolicy.cacheAndServer:
-        final oldSnap =
-            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+        final cachedSnap = await _updateDocument(
+          ref,
+          data,
+          writePolicy: WritePolicy.cacheOnly,
+          isOptimistic: true,
+          batch: batch,
+        );
         try {
-          final values = await Future.wait([
-            updateDocument(ref, data, writePolicy: WritePolicy.cacheOnly),
-            updateDocument(
-              ref,
-              data,
-              writePolicy: WritePolicy.serverFirst,
-              toFirestore: toFirestore,
-            )
-          ]);
-          return values[1];
+          final serverSnap = await _updateDocument(
+            ref,
+            data,
+            writePolicy: WritePolicy.serverFirst,
+            toFirestore: toFirestore,
+            batch: batch,
+          );
+          return serverSnap;
         } catch (e) {
           // If an error is encountered when trying to update the data on the server,
           // rollback the cache change and rethrow the error.
-          _updateDocBloc(oldSnap);
+          _rollbackOptimisticUpdate(cachedSnap);
           rethrow;
         }
       case WritePolicy.cacheOnly:
         try {
           final snap =
               await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-          return _updateDocBloc(snap.copyWith(value: data));
+          return _updateDocBloc(
+            snap.withValue(updateMerge(snap.data(), data)),
+            isOptimistic: isOptimistic,
+          );
           // An exception is thrown if the document doesn't yet exist in the cache.
         } on FirebaseException {
-          return _createDocBloc(value: data, reference: ref).value!;
+          return _createDocBloc(
+            value: data,
+            reference: ref,
+            isOptimistic: isOptimistic,
+          ).value!;
         }
     }
   }
@@ -263,17 +313,33 @@ class Nimbostratus {
     T Function(T? currentValue) modifyFn, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
+  }) async {
+    return _modifyDocument<T>(
+      ref,
+      modifyFn,
+      toFirestore: toFirestore,
+      writePolicy: writePolicy,
+    );
+  }
+
+  Future<NimbostratusDocumentSnapshot<T?>> _modifyDocument<T>(
+    DocumentReference<T> ref,
+    T Function(T? currentValue) modifyFn, {
+    WritePolicy writePolicy = WritePolicy.serverFirst,
+    ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
+    bool isOptimistic = false,
   }) async {
     final snap =
         await getDocument<T>(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
 
-    return updateDocument<T>(
+    return _updateDocument<T>(
       ref,
       modifyFn(snap.value),
       toFirestore: toFirestore,
       writePolicy: writePolicy,
       batch: batch,
+      isOptimistic: isOptimistic,
     );
   }
 
@@ -283,7 +349,7 @@ class Nimbostratus {
   ) async {
     final snap = await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
     await ref.delete();
-    _updateDocBloc(snap.copyWith(value: null));
+    _updateDocBloc(snap.withValue(null));
   }
 
   /// Retrieves a Firestore document from the in-memory cache or server according to the specified [GetFetchPolicy].

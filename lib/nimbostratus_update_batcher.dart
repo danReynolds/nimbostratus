@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nimbostratus/nimbostratus.dart';
-import 'package:restate/restate.dart';
+import 'package:nimbostratus/nimbostratus_state_bloc.dart';
 
 /// An extension of the [WriteBatch] with support for making changes and rolling back
 /// the Nimbostratus in-memory cache.
@@ -12,7 +12,7 @@ class NimbostratusWriteBatch implements WriteBatch {
     required this.batch,
   });
 
-  void addListener(Future<void> Function() callback) {
+  void onCommit(Future<void> Function() callback) {
     listeners.add(callback);
   }
 
@@ -41,30 +41,56 @@ class NimbostratusWriteBatch implements WriteBatch {
 }
 
 class NimbostratusUpdateBatcher {
-  final Nimbostratus store;
-  final Map<String, StateBloc<NimbostratusDocumentSnapshot>> _documents;
+  final Map<String, NimbostratusStateBloc> _documents;
   final FirebaseFirestore _firestore;
   late NimbostratusWriteBatch _batch;
 
+  final Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+    DocumentReference<T> ref,
+    T data, {
+    WritePolicy writePolicy,
+    ToFirestore<T>? toFirestore,
+    NimbostratusWriteBatch? batch,
+    bool isOptimistic,
+  }) _update;
+
+  final Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+    DocumentReference<T> ref,
+    T Function(T? currentValue) modifyFn, {
+    WritePolicy writePolicy,
+    ToFirestore<T>? toFirestore,
+    NimbostratusWriteBatch? batch,
+    bool isOptimistic,
+  }) _modify;
+
   NimbostratusUpdateBatcher({
-    required this.store,
     required FirebaseFirestore firestore,
-    required Map<String, StateBloc<NimbostratusDocumentSnapshot>> documents,
+    required Map<String, NimbostratusStateBloc> documents,
+    required Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+      DocumentReference<T> ref,
+      T data, {
+      WritePolicy writePolicy,
+      ToFirestore<T>? toFirestore,
+      NimbostratusWriteBatch? batch,
+      bool isOptimistic,
+    })
+        update,
+    required Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+      DocumentReference<T> ref,
+      T Function(T? currentValue) modifyFn, {
+      WritePolicy writePolicy,
+      ToFirestore<T>? toFirestore,
+      NimbostratusWriteBatch? batch,
+      bool isOptimistic,
+    })
+        modify,
   })  : _documents = documents,
+        _update = update,
+        _modify = modify,
         _firestore = firestore,
         _batch = NimbostratusWriteBatch(batch: firestore.batch());
 
-  final Map<String, NimbostratusDocumentSnapshot<dynamic>> _batchChanges = {};
-
-  Future<void> _recordRollback<T>(DocumentReference<T> ref) async {
-    final snap = await Nimbostratus.instance
-        .getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-    final refPath = snap.reference.path;
-
-    if (_batchChanges[refPath] == null) {
-      _batchChanges[refPath] = snap;
-    }
-  }
+  final List<NimbostratusDocumentSnapshot> _optimisticSnaps = [];
 
   Future<NimbostratusDocumentSnapshot<T?>> modify<T>(
     DocumentReference<T> ref,
@@ -72,14 +98,29 @@ class NimbostratusUpdateBatcher {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
   }) async {
-    _recordRollback(ref);
-    return store.modifyDocument<T>(
+    /// A [WritePolicy.serverFirst] is not optimistic as it waits for the server response. Otherwise
+    /// the batch update will be optimistic since both [WritePolicy.cacheOnly] and [WritePolicy.cacheAndServer]
+    /// will optimistically write to the cache first.
+    bool isOptimistic = writePolicy != WritePolicy.serverFirst;
+
+    final snap = await _modify<T>(
       ref,
       modifyFn,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       batch: _batch,
+      isOptimistic: isOptimistic,
     );
+
+    assert(
+      snap.isOptimistic == isOptimistic,
+      'An update indiciated as optimistic was expected to return an optimistic snapshot.',
+    );
+
+    if (isOptimistic) {
+      _optimisticSnaps.add(snap);
+    }
+    return snap;
   }
 
   Future<NimbostratusDocumentSnapshot<T?>> update<T>(
@@ -87,26 +128,46 @@ class NimbostratusUpdateBatcher {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
-  }) {
-    _recordRollback(ref);
-    return store.updateDocument<T>(
+  }) async {
+    /// A [WritePolicy.serverFirst] is not optimistic as it waits for the server response. Otherwise
+    /// the batch update will be optimistic since both [WritePolicy.cacheOnly] and [WritePolicy.cacheAndServer]
+    /// will optimistically write to the cache first.
+    bool isOptimistic = writePolicy != WritePolicy.serverFirst;
+
+    final snap = await _update<T>(
       ref,
       data,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       batch: _batch,
+      isOptimistic: isOptimistic,
     );
+
+    assert(
+      snap.isOptimistic == isOptimistic,
+      'An update indiciated as optimistic was expected to return an optimistic snapshot.',
+    );
+
+    if (isOptimistic) {
+      _optimisticSnaps.add(snap);
+    }
+    return snap;
   }
 
   Future<void> commit() async {
-    return _batch.commit();
+    await _batch.commit();
+    // After committing successfully, all optimistically updated snapshots can be
+    // marked as no longer optimistic.
+    for (final snap in _optimisticSnaps) {
+      snap.isOptimistic = false;
+    }
   }
 
   void rollback() {
     _batch = NimbostratusWriteBatch(batch: _firestore.batch());
-    _batchChanges.forEach((key, value) {
-      _documents[key]!.add(value);
-    });
-    _batchChanges.clear();
+    // Rollback all optimistic snaps in the reverse order they were applied.
+    for (final optimisticSnap in _optimisticSnaps.reversed) {
+      _documents[optimisticSnap.reference.path]!.rollback(optimisticSnap);
+    }
   }
 }

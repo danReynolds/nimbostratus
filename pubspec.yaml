@@ -14,6 +14,7 @@ dependencies:
     sdk: flutter
   restate: ^0.3.0
   rxdart: ^0.27.3
+  uuid: ^3.0.6
 
 dev_dependencies:
   flutter_test:
