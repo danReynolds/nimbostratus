@@ -2756,6 +2756,44 @@ void main() async {
           "sources": [Source.cache.name, Source.server.name],
         });
 
+        final stream = Nimbostratus.instance
+            .streamDocument(
+              docRef,
+              fetchPolicy: StreamFetchPolicy.cacheOnly,
+            )
+            .asBroadcastStream();
+
+        expectLater(
+          stream.map((snap) => snap.data()),
+          emitsInOrder([
+            {
+              "name": 'Alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 2',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            // Once the exception is thrown, the document stream will replay
+            // the optimistic updates in reverse order to unwind the changes.
+            {
+              "name": 'Alice',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ]),
+        );
+
         await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
           await batcher.modify<Map<String, dynamic>>(
             docRef,
@@ -2808,6 +2846,226 @@ void main() async {
               "sources": [Source.cache.name, Source.server.name],
             },
           ),
+        );
+      });
+
+      test('should not rollback snapshots added on top of optimistic updates',
+          () async {
+        final docRef = store.collection('users').doc('alice');
+
+        await docRef.set({
+          "name": 'Alice',
+          "sources": [Source.cache.name, Source.server.name],
+        });
+
+        final stream = Nimbostratus.instance
+            .streamDocument(
+              docRef,
+              fetchPolicy: StreamFetchPolicy.cacheOnly,
+            )
+            .asBroadcastStream();
+
+        expectLater(
+          stream.map((snap) => snap.data()),
+          emitsInOrder([
+            {
+              "name": 'Alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 2',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 3',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 4',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ]),
+        );
+
+        await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
+          await batcher.modify<Map<String, dynamic>>(
+            docRef,
+            (data) {
+              return {
+                ...data!,
+                "age": 22,
+              };
+            },
+            writePolicy: WritePolicy.cacheAndServer,
+          );
+
+          await batcher.update<Map<String, dynamic>>(
+            docRef,
+            {
+              "name": "Alice 2",
+            },
+            writePolicy: WritePolicy.cacheAndServer,
+          );
+
+          // This is an example of an update somewhere else on the client that occurs during the batch update.
+          // This update is on top of the optimistic batch updates so the rollback should not re-emit the old
+          // optimistic updates on the stream and should preserve this value.
+          await Nimbostratus.instance.updateDocument(
+            docRef,
+            {
+              "name": "Alice 3",
+            },
+            writePolicy: WritePolicy.cacheOnly,
+          );
+
+          throw Error();
+        });
+
+        final snap = await Nimbostratus.instance.getDocument(
+          docRef,
+          fetchPolicy: GetFetchPolicy.cacheOnly,
+        );
+
+        // At the end of the rollback, the current value for the document should be the
+        // non-optimistic update applied during the batch.
+        expect(
+          snap.data(),
+          equals(
+            {
+              "name": 'Alice 3',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ),
+        );
+
+        await Nimbostratus.instance.updateDocument(
+          docRef,
+          {
+            "name": "Alice 4",
+          },
+          writePolicy: WritePolicy.cacheOnly,
+        );
+      });
+
+      test('should not rollback snapshots added in between optimistic updates',
+          () async {
+        final docRef = store.collection('users').doc('alice');
+
+        await docRef.set({
+          "name": 'Alice',
+          "sources": [Source.cache.name, Source.server.name],
+        });
+
+        final stream = Nimbostratus.instance
+            .streamDocument(
+              docRef,
+              fetchPolicy: StreamFetchPolicy.cacheOnly,
+            )
+            .asBroadcastStream();
+
+        expectLater(
+          stream.map((snap) => snap.data()),
+          emitsInOrder([
+            {
+              "name": 'Alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 2',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 3',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 2',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            {
+              "name": 'Alice 4',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ]),
+        );
+
+        await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
+          await batcher.modify<Map<String, dynamic>>(
+            docRef,
+            (data) {
+              return {
+                ...data!,
+                "age": 22,
+              };
+            },
+            writePolicy: WritePolicy.cacheAndServer,
+          );
+
+          // This is an example of an update somewhere else on the client that occurs during the batch update.
+          // This update is in between optimistic batch updates so the rollback should replay optimistic updates
+          // on top of this intermediate value, but not re-emit optimistic updates that occurred before it since
+          // this is still the correct value.
+          await Nimbostratus.instance.updateDocument(
+            docRef,
+            {
+              "name": "Alice 2",
+            },
+            writePolicy: WritePolicy.cacheOnly,
+          );
+
+          await batcher.update<Map<String, dynamic>>(
+            docRef,
+            {
+              "name": "Alice 3",
+            },
+            writePolicy: WritePolicy.cacheAndServer,
+          );
+
+          throw Error();
+        });
+
+        final snap = await Nimbostratus.instance.getDocument(
+          docRef,
+          fetchPolicy: GetFetchPolicy.cacheOnly,
+        );
+
+        // At the end of the rollback, the current value for the document should be the
+        // non-optimistic update applied during the batch.
+        expect(
+          snap.data(),
+          equals(
+            {
+              "name": 'Alice 2',
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ),
+        );
+
+        await Nimbostratus.instance.updateDocument(
+          docRef,
+          {
+            "name": "Alice 4",
+          },
+          writePolicy: WritePolicy.cacheOnly,
         );
       });
     });
