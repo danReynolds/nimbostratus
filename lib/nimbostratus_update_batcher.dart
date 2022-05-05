@@ -154,13 +154,18 @@ class NimbostratusUpdateBatcher {
     return snap;
   }
 
-  Future<void> commit() async {
-    await _batch.commit();
-    // After committing successfully, all optimistically updated snapshots can be
+  void commitOptimisticUpdates() {
+    // After the batcher completes, all optimistically updated snapshots can be
     // marked as no longer optimistic.
     for (final snap in _optimisticSnaps) {
       snap.isOptimistic = false;
     }
+    _optimisticSnaps.clear();
+  }
+
+  Future<void> commit() async {
+    await _batch.commit();
+    commitOptimisticUpdates();
   }
 
   void rollback() {

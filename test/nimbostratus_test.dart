@@ -2682,8 +2682,10 @@ void main() async {
       });
     });
 
-    group('with cache-first changes', () {
-      test('should update the cache before the data is committed', () async {
+    group('with optimistic changes', () {
+      test(
+          'should optimistically update the cache before the data is committed',
+          () async {
         final docRef = store.collection('users').doc('alice');
 
         await docRef.set({
@@ -2746,6 +2748,118 @@ void main() async {
           ),
         );
       });
+
+      test(
+        'should mark the optimistic snaps as non-optimistic after the changes are committed',
+        () async {
+          final docRef = store.collection('users').doc('alice');
+
+          await docRef.set({
+            "name": 'alice',
+            "sources": [Source.cache.name, Source.server.name],
+          });
+
+          NimbostratusDocumentSnapshot? update1;
+          NimbostratusDocumentSnapshot? update2;
+
+          await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
+            update1 = await batcher.modify<Map<String, dynamic>>(
+              docRef,
+              (data) {
+                return {
+                  ...data!,
+                  "age": 22,
+                };
+              },
+              writePolicy: WritePolicy.cacheAndServer,
+            );
+
+            expect(
+              update1!.isOptimistic,
+              equals(true),
+            );
+
+            update2 = await batcher.update<Map<String, dynamic>>(
+              docRef,
+              {
+                "name": "Alice 2",
+              },
+              writePolicy: WritePolicy.cacheAndServer,
+            );
+
+            expect(
+              update2!.isOptimistic,
+              equals(true),
+            );
+
+            await batcher.commit();
+          });
+
+          expect(
+            update1!.isOptimistic,
+            equals(false),
+          );
+          expect(
+            update2!.isOptimistic,
+            equals(false),
+          );
+        },
+      );
+
+      test(
+        'should mark the optimistic snaps as non-optimistic after the update completes',
+        () async {
+          final docRef = store.collection('users').doc('alice');
+
+          await docRef.set({
+            "name": 'alice',
+            "sources": [Source.cache.name, Source.server.name],
+          });
+
+          NimbostratusDocumentSnapshot? update1;
+          NimbostratusDocumentSnapshot? update2;
+
+          await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
+            update1 = await batcher.modify<Map<String, dynamic>>(
+              docRef,
+              (data) {
+                return {
+                  ...data!,
+                  "age": 22,
+                };
+              },
+              writePolicy: WritePolicy.cacheOnly,
+            );
+
+            expect(
+              update1!.isOptimistic,
+              equals(true),
+            );
+
+            update2 = await batcher.update<Map<String, dynamic>>(
+              docRef,
+              {
+                "name": "Alice 2",
+              },
+              writePolicy: WritePolicy.cacheOnly,
+            );
+
+            expect(
+              update2!.isOptimistic,
+              equals(true),
+            );
+          });
+
+          expect(
+            update1!.isOptimistic,
+            equals(false),
+          );
+          expect(
+            update2!.isOptimistic,
+            equals(false),
+          );
+        },
+      );
 
       test('should rollback the cache changes if an exception is thrown',
           () async {

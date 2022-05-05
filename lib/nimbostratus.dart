@@ -140,6 +140,7 @@ class Nimbostratus {
 
     try {
       await updateCallback(batcher);
+      batcher.commitOptimisticUpdates();
     } catch (e) {
       batcher.rollback();
     }
