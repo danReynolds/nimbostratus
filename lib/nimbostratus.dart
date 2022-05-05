@@ -61,7 +61,8 @@ class Nimbostratus {
     return bloc;
   }
 
-  void _rollbackDocBloc<T>(NimbostratusOptimisticDocumentSnapshot<T?> snap) {
+  void _rollbackOptimisticUpdate<T>(
+      NimbostratusOptimisticDocumentSnapshot<T?> snap) {
     final refPath = snap.reference.path;
     _documents[refPath]!.rollback(snap);
   }
@@ -182,7 +183,7 @@ class Nimbostratus {
       case WritePolicy.serverFirst:
         await ref.set(data, options);
         final snap = await ref.get(const GetOptions(source: Source.cache));
-        return _updateDocBloc(snap, isOptimistic: isOptimistic);
+        return _updateDocBloc(snap);
       case WritePolicy.cacheAndServer:
         final cachedSnap = await setDocument(
           ref,
@@ -199,7 +200,7 @@ class Nimbostratus {
           return serverSnap;
         } catch (e) {
           // On a server error, rollback the optimistic update and rethrow.
-          _rollbackDocBloc(cachedSnap);
+          _rollbackOptimisticUpdate(cachedSnap);
           rethrow;
         }
 
@@ -239,13 +240,13 @@ class Nimbostratus {
           batch.update(ref, serializedData);
           batch.onCommit(() async {
             final snap = await ref.get(const GetOptions(source: Source.cache));
-            _updateDocBloc(snap, isOptimistic: isOptimistic);
+            _updateDocBloc(snap);
           });
           return getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
         } else {
           await ref.update(serializedData);
           final snap = await ref.get(const GetOptions(source: Source.cache));
-          return _updateDocBloc(snap, isOptimistic: isOptimistic);
+          return _updateDocBloc(snap);
         }
       case WritePolicy.cacheAndServer:
         final cachedSnap = await updateDocument(
@@ -267,7 +268,7 @@ class Nimbostratus {
         } catch (e) {
           // If an error is encountered when trying to update the data on the server,
           // rollback the cache change and rethrow the error.
-          _rollbackDocBloc(cachedSnap);
+          _rollbackOptimisticUpdate(cachedSnap);
           rethrow;
         }
       case WritePolicy.cacheOnly:
@@ -280,8 +281,11 @@ class Nimbostratus {
           );
           // An exception is thrown if the document doesn't yet exist in the cache.
         } on FirebaseException {
-          return _createDocBloc(value: data, reference: ref, isOptimistic: true)
-              .value!;
+          return _createDocBloc(
+            value: data,
+            reference: ref,
+            isOptimistic: isOptimistic,
+          ).value!;
         }
     }
   }
