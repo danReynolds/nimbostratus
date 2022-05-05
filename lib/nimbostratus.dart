@@ -35,6 +35,11 @@ class Nimbostratus {
   }
 
   void _rollbackOptimisticUpdate<T>(NimbostratusDocumentSnapshot<T?> snap) {
+    assert(
+      snap.isOptimistic,
+      'Attempted to roll back a non-optimistic snapshot.',
+    );
+
     final refPath = snap.reference.path;
     _documents[refPath]!.rollback(snap);
   }
@@ -202,7 +207,9 @@ class Nimbostratus {
           return serverSnap;
         } catch (e) {
           // On a server error, rollback the optimistic update and rethrow.
-          _rollbackOptimisticUpdate(cachedSnap);
+          if (cachedSnap.isOptimistic) {
+            _rollbackOptimisticUpdate(cachedSnap);
+          }
           rethrow;
         }
 
@@ -284,7 +291,9 @@ class Nimbostratus {
         } catch (e) {
           // If an error is encountered when trying to update the data on the server,
           // rollback the cache change and rethrow the error.
-          _rollbackOptimisticUpdate(cachedSnap);
+          if (cachedSnap.isOptimistic) {
+            _rollbackOptimisticUpdate(cachedSnap);
+          }
           rethrow;
         }
       case WritePolicy.cacheOnly:

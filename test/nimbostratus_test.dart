@@ -3182,6 +3182,78 @@ void main() async {
           writePolicy: WritePolicy.cacheOnly,
         );
       });
+
+      test(
+          'should not apply or rollback optimistic snapshots that do not change the document value',
+          () async {
+        final docRef = store.collection('users').doc('alice');
+
+        await docRef.set({
+          "name": 'Alice',
+          "sources": [Source.cache.name, Source.server.name],
+        });
+
+        final stream = Nimbostratus.instance
+            .streamDocument(
+              docRef,
+              fetchPolicy: StreamFetchPolicy.cacheOnly,
+            )
+            .asBroadcastStream();
+
+        expectLater(
+          stream.map((snap) => snap.data()),
+          emitsInOrder([
+            {
+              "name": 'Alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+            // The optimistic update should not be re-emitted since it did not change the existing cached snapshot value.
+            {
+              "name": 'Alice 2',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ]),
+        );
+
+        await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
+          final updatedSnap = await batcher.update<Map<String, dynamic>>(
+            docRef,
+            {
+              "name": 'Alice',
+            },
+            writePolicy: WritePolicy.cacheAndServer,
+          );
+
+          expect(updatedSnap.isOptimistic, equals(false));
+
+          throw Error();
+        });
+
+        final snap = await Nimbostratus.instance.getDocument(
+          docRef,
+          fetchPolicy: GetFetchPolicy.cacheOnly,
+        );
+
+        // At the end of the rollback, the current value for the document should be the
+        // non-optimistic update applied during the batch.
+        expect(
+          snap.data(),
+          equals(
+            {
+              "name": 'Alice',
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ),
+        );
+
+        await Nimbostratus.instance.updateDocument(
+          docRef,
+          {
+            "name": "Alice 2",
+          },
+          writePolicy: WritePolicy.cacheOnly,
+        );
+      });
     });
   });
 }

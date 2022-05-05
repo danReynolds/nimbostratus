@@ -98,26 +98,22 @@ class NimbostratusUpdateBatcher {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
   }) async {
-    /// A [WritePolicy.serverFirst] is not optimistic as it waits for the server response. Otherwise
-    /// the batch update will be optimistic since both [WritePolicy.cacheOnly] and [WritePolicy.cacheAndServer]
-    /// will optimistically write to the cache first.
-    bool isOptimistic = writePolicy != WritePolicy.serverFirst;
-
     final snap = await _modify<T>(
       ref,
       modifyFn,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       batch: _batch,
-      isOptimistic: isOptimistic,
+
+      /// A [WritePolicy.serverFirst] is not optimistic as it waits for the server response. Otherwise
+      /// the batch update will be optimistic since both [WritePolicy.cacheOnly] and [WritePolicy.cacheAndServer]
+      /// will optimistically write to the cache first.
+      isOptimistic: writePolicy != WritePolicy.serverFirst,
     );
 
-    assert(
-      snap.isOptimistic == isOptimistic,
-      'An update indiciated as optimistic was expected to return an optimistic snapshot.',
-    );
-
-    if (isOptimistic) {
+    // The returned snap may not be optimistic if for example, the optimistic update we're trying to perform is already the current value of the
+    // document, in which case it won't re-emit any new value.
+    if (snap.isOptimistic) {
       _optimisticSnaps.add(snap);
     }
     return snap;
@@ -129,26 +125,22 @@ class NimbostratusUpdateBatcher {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
   }) async {
-    /// A [WritePolicy.serverFirst] is not optimistic as it waits for the server response. Otherwise
-    /// the batch update will be optimistic since both [WritePolicy.cacheOnly] and [WritePolicy.cacheAndServer]
-    /// will optimistically write to the cache first.
-    bool isOptimistic = writePolicy != WritePolicy.serverFirst;
-
     final snap = await _update<T>(
       ref,
       data,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       batch: _batch,
-      isOptimistic: isOptimistic,
+
+      /// A [WritePolicy.serverFirst] is not optimistic as it waits for the server response. Otherwise
+      /// the batch update will be optimistic since both [WritePolicy.cacheOnly] and [WritePolicy.cacheAndServer]
+      /// will optimistically write to the cache first.
+      isOptimistic: writePolicy != WritePolicy.serverFirst,
     );
 
-    assert(
-      snap.isOptimistic == isOptimistic,
-      'An update indiciated as optimistic was expected to return an optimistic snapshot.',
-    );
-
-    if (isOptimistic) {
+    // The returned snap may not be optimistic if for example, the optimistic update we're trying to perform is already the current value of the
+    // document, in which case it won't re-emit any new value.
+    if (snap.isOptimistic) {
       _optimisticSnaps.add(snap);
     }
     return snap;
