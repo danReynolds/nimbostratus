@@ -41,16 +41,52 @@ class NimbostratusWriteBatch implements WriteBatch {
 }
 
 class NimbostratusUpdateBatcher {
-  final Nimbostratus store;
   final Map<String, NimbostratusStateBloc> _documents;
   final FirebaseFirestore _firestore;
   late NimbostratusWriteBatch _batch;
 
+  final Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+    DocumentReference<T> ref,
+    T data, {
+    WritePolicy writePolicy,
+    ToFirestore<T>? toFirestore,
+    NimbostratusWriteBatch? batch,
+    bool isOptimistic,
+  }) _update;
+
+  final Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+    DocumentReference<T> ref,
+    T Function(T? currentValue) modifyFn, {
+    WritePolicy writePolicy,
+    ToFirestore<T>? toFirestore,
+    NimbostratusWriteBatch? batch,
+    bool isOptimistic,
+  }) _modify;
+
   NimbostratusUpdateBatcher({
-    required this.store,
     required FirebaseFirestore firestore,
     required Map<String, NimbostratusStateBloc> documents,
+    required Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+      DocumentReference<T> ref,
+      T data, {
+      WritePolicy writePolicy,
+      ToFirestore<T>? toFirestore,
+      NimbostratusWriteBatch? batch,
+      bool isOptimistic,
+    })
+        update,
+    required Future<NimbostratusDocumentSnapshot<T?>> Function<T>(
+      DocumentReference<T> ref,
+      T Function(T? currentValue) modifyFn, {
+      WritePolicy writePolicy,
+      ToFirestore<T>? toFirestore,
+      NimbostratusWriteBatch? batch,
+      bool isOptimistic,
+    })
+        modify,
   })  : _documents = documents,
+        _update = update,
+        _modify = modify,
         _firestore = firestore,
         _batch = NimbostratusWriteBatch(batch: firestore.batch());
 
@@ -67,7 +103,7 @@ class NimbostratusUpdateBatcher {
     /// will optimistically write to the cache first.
     bool isOptimistic = writePolicy != WritePolicy.serverFirst;
 
-    final snap = await store.modifyDocument<T>(
+    final snap = await _modify<T>(
       ref,
       modifyFn,
       writePolicy: writePolicy,
@@ -98,7 +134,7 @@ class NimbostratusUpdateBatcher {
     /// will optimistically write to the cache first.
     bool isOptimistic = writePolicy != WritePolicy.serverFirst;
 
-    final snap = await store.updateDocument<T>(
+    final snap = await _update<T>(
       ref,
       data,
       writePolicy: writePolicy,

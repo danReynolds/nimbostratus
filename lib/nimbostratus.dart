@@ -132,9 +132,10 @@ class Nimbostratus {
     Future<void> Function(NimbostratusUpdateBatcher batcher) updateCallback,
   ) async {
     final batcher = NimbostratusUpdateBatcher(
-      store: this,
       firestore: firestore,
       documents: _documents,
+      update: _updateDocument,
+      modify: _modifyDocument,
     );
 
     try {
@@ -163,6 +164,20 @@ class Nimbostratus {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     SetOptions? options,
+  }) {
+    return _setDocument(
+      ref,
+      data,
+      writePolicy: writePolicy,
+      options: options,
+    );
+  }
+
+  Future<NimbostratusDocumentSnapshot<T?>> _setDocument<T>(
+    DocumentReference<T> ref,
+    T data, {
+    WritePolicy writePolicy = WritePolicy.serverFirst,
+    SetOptions? options,
     bool isOptimistic = false,
   }) async {
     switch (writePolicy) {
@@ -171,14 +186,14 @@ class Nimbostratus {
         final snap = await ref.get(const GetOptions(source: Source.cache));
         return _updateDocBloc(snap);
       case WritePolicy.cacheAndServer:
-        final cachedSnap = await setDocument(
+        final cachedSnap = await _setDocument(
           ref,
           data,
           writePolicy: WritePolicy.cacheOnly,
           isOptimistic: true,
         );
         try {
-          final serverSnap = await setDocument(
+          final serverSnap = await _setDocument(
             ref,
             data,
             writePolicy: WritePolicy.serverFirst,
@@ -215,6 +230,20 @@ class Nimbostratus {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
+  }) {
+    return _updateDocument(
+      ref,
+      data,
+      writePolicy: writePolicy,
+      toFirestore: toFirestore,
+    );
+  }
+
+  Future<NimbostratusDocumentSnapshot<T?>> _updateDocument<T>(
+    DocumentReference<T> ref,
+    T data, {
+    WritePolicy writePolicy = WritePolicy.serverFirst,
+    ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
   }) async {
@@ -235,7 +264,7 @@ class Nimbostratus {
           return _updateDocBloc(snap);
         }
       case WritePolicy.cacheAndServer:
-        final cachedSnap = await updateDocument(
+        final cachedSnap = await _updateDocument(
           ref,
           data,
           writePolicy: WritePolicy.cacheOnly,
@@ -243,7 +272,7 @@ class Nimbostratus {
           batch: batch,
         );
         try {
-          final serverSnap = await updateDocument(
+          final serverSnap = await _updateDocument(
             ref,
             data,
             writePolicy: WritePolicy.serverFirst,
@@ -284,13 +313,27 @@ class Nimbostratus {
     T Function(T? currentValue) modifyFn, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
+  }) async {
+    return _modifyDocument<T>(
+      ref,
+      modifyFn,
+      toFirestore: toFirestore,
+      writePolicy: writePolicy,
+    );
+  }
+
+  Future<NimbostratusDocumentSnapshot<T?>> _modifyDocument<T>(
+    DocumentReference<T> ref,
+    T Function(T? currentValue) modifyFn, {
+    WritePolicy writePolicy = WritePolicy.serverFirst,
+    ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
   }) async {
     final snap =
         await getDocument<T>(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
 
-    return updateDocument<T>(
+    return _updateDocument<T>(
       ref,
       modifyFn(snap.value),
       toFirestore: toFirestore,
