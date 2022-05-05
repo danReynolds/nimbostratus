@@ -7,6 +7,13 @@ class NimbostratusDocumentSnapshot<T> implements DocumentSnapshot<T> {
   final T? value;
   final Stream<NimbostratusDocumentSnapshot<T?>> stream;
 
+  // Optimistic snapshots maintain pointers to previous and next snaps to support
+  // rollback of optimistic updates.
+  NimbostratusDocumentSnapshot<T>? prev;
+  NimbostratusDocumentSnapshot<T>? next;
+  // Whether the snapshot is an optimistic snapshot update.
+  bool isOptimistic;
+
   @override
   late final String id;
 
@@ -20,6 +27,7 @@ class NimbostratusDocumentSnapshot<T> implements DocumentSnapshot<T> {
     required this.value,
     required this.stream,
     required this.reference,
+    this.isOptimistic = false,
     SnapshotMetadata? metadata,
   })  : id = reference.id,
         metadata = metadata ?? CacheSnapshotMetadata();

@@ -3,7 +3,6 @@ library nimbostratus;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:nimbostratus/nimbostratus_document_snapshot.dart';
-import 'package:nimbostratus/nimbostratus_optimistic_document_snapshot.dart';
 import 'package:nimbostratus/nimbostratus_state_bloc.dart';
 import 'package:nimbostratus/nimbostratus_update_batcher.dart';
 import 'package:nimbostratus/policies.dart';
@@ -35,6 +34,11 @@ class Nimbostratus {
     return _firestore ?? FirebaseFirestore.instance;
   }
 
+  void _rollbackOptimisticUpdate<T>(NimbostratusDocumentSnapshot<T?> snap) {
+    final refPath = snap.reference.path;
+    _documents[refPath]!.rollback(snap);
+  }
+
   NimbostratusStateBloc<T?> _createDocBloc<T>({
     required T? value,
     required DocumentReference<T> reference,
@@ -44,27 +48,15 @@ class Nimbostratus {
     final bloc = NimbostratusStateBloc<T?>();
     _documents[reference.path] = bloc;
     bloc.add(
-      isOptimistic
-          ? NimbostratusOptimisticDocumentSnapshot<T?>(
-              reference: reference,
-              metadata: metadata,
-              value: value,
-              stream: bloc.nonNullStream,
-            )
-          : NimbostratusDocumentSnapshot<T?>(
-              reference: reference,
-              metadata: metadata,
-              value: value,
-              stream: bloc.nonNullStream,
-            ),
+      NimbostratusDocumentSnapshot<T?>(
+        reference: reference,
+        metadata: metadata,
+        value: value,
+        stream: bloc.nonNullStream,
+        isOptimistic: isOptimistic,
+      ),
     );
     return bloc;
-  }
-
-  void _rollbackOptimisticUpdate<T>(
-      NimbostratusOptimisticDocumentSnapshot<T?> snap) {
-    final refPath = snap.reference.path;
-    _documents[refPath]!.rollback(snap);
   }
 
   NimbostratusDocumentSnapshot<T?> _updateDocBloc<T>(
@@ -87,19 +79,13 @@ class Nimbostratus {
 
     if (!deepEq(previousSnap?.data(), snapData)) {
       docBloc.add(
-        isOptimistic
-            ? NimbostratusOptimisticDocumentSnapshot<T?>(
-                value: snapData,
-                reference: snap.reference,
-                metadata: snap.metadata,
-                stream: docBloc.nonNullStream,
-              )
-            : NimbostratusDocumentSnapshot<T?>(
-                value: snapData,
-                reference: snap.reference,
-                metadata: snap.metadata,
-                stream: docBloc.nonNullStream,
-              ),
+        NimbostratusDocumentSnapshot<T?>(
+          value: snapData,
+          reference: snap.reference,
+          metadata: snap.metadata,
+          stream: docBloc.nonNullStream,
+          isOptimistic: isOptimistic,
+        ),
       );
     }
 
@@ -190,7 +176,7 @@ class Nimbostratus {
           data,
           writePolicy: WritePolicy.cacheOnly,
           isOptimistic: true,
-        ) as NimbostratusOptimisticDocumentSnapshot<T?>;
+        );
         try {
           final serverSnap = await setDocument(
             ref,
@@ -255,7 +241,7 @@ class Nimbostratus {
           writePolicy: WritePolicy.cacheOnly,
           isOptimistic: true,
           batch: batch,
-        ) as NimbostratusOptimisticDocumentSnapshot<T?>;
+        );
         try {
           final serverSnap = await updateDocument(
             ref,
