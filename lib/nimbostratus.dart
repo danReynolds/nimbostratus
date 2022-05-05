@@ -182,7 +182,7 @@ class Nimbostratus {
       case WritePolicy.serverFirst:
         await ref.set(data, options);
         final snap = await ref.get(const GetOptions(source: Source.cache));
-        return _updateDocBloc(snap);
+        return _updateDocBloc(snap, isOptimistic: isOptimistic);
       case WritePolicy.cacheAndServer:
         final cachedSnap = await setDocument(
           ref,
@@ -207,10 +207,17 @@ class Nimbostratus {
         try {
           final snap =
               await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-          return _updateDocBloc(snap.withValue(data));
+          return _updateDocBloc(
+            snap.withValue(setMerge(snap.data(), data, options)),
+            isOptimistic: isOptimistic,
+          );
           // An exception is thrown if the document doesn't yet exist in the cache.
         } on FirebaseException {
-          return _createDocBloc(value: data, reference: ref).value!;
+          return _createDocBloc(
+            value: data,
+            reference: ref,
+            isOptimistic: isOptimistic,
+          ).value!;
         }
     }
   }
@@ -226,17 +233,8 @@ class Nimbostratus {
   }) async {
     switch (writePolicy) {
       case WritePolicy.serverFirst:
-        Map<String, dynamic> serializedData;
+        final serializedData = serializeData(data, toFirestore);
 
-        if (data is Map<String, dynamic>) {
-          serializedData = data;
-        } else {
-          assert(
-            toFirestore != null,
-            'A toFirestore function must be provivded for converted-type server updates.',
-          );
-          serializedData = toFirestore!(data, null);
-        }
         if (batch != null) {
           batch.update(ref, serializedData);
           batch.onCommit(() async {
@@ -255,6 +253,7 @@ class Nimbostratus {
           data,
           writePolicy: WritePolicy.cacheOnly,
           isOptimistic: true,
+          batch: batch,
         ) as NimbostratusOptimisticDocumentSnapshot<T?>;
         try {
           final serverSnap = await updateDocument(
@@ -262,6 +261,7 @@ class Nimbostratus {
             data,
             writePolicy: WritePolicy.serverFirst,
             toFirestore: toFirestore,
+            batch: batch,
           );
           return serverSnap;
         } catch (e) {
@@ -274,7 +274,10 @@ class Nimbostratus {
         try {
           final snap =
               await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-          return _updateDocBloc(snap.withValue(data));
+          return _updateDocBloc(
+            snap.withValue(updateMerge(snap.data(), data)),
+            isOptimistic: isOptimistic,
+          );
           // An exception is thrown if the document doesn't yet exist in the cache.
         } on FirebaseException {
           return _createDocBloc(value: data, reference: ref, isOptimistic: true)

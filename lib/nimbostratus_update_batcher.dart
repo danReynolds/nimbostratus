@@ -70,8 +70,10 @@ class NimbostratusUpdateBatcher {
       toFirestore: toFirestore,
       batch: _batch,
       isOptimistic: true,
-    ) as NimbostratusOptimisticDocumentSnapshot<T?>;
-    _optimisticSnaps.add(snap);
+    );
+    if (snap is NimbostratusOptimisticDocumentSnapshot<T?>) {
+      _optimisticSnaps.add(snap);
+    }
     return snap;
   }
 
@@ -88,8 +90,10 @@ class NimbostratusUpdateBatcher {
       toFirestore: toFirestore,
       batch: _batch,
       isOptimistic: true,
-    ) as NimbostratusOptimisticDocumentSnapshot<T?>;
-    _optimisticSnaps.add(snap);
+    );
+    if (snap is NimbostratusOptimisticDocumentSnapshot<T?>) {
+      _optimisticSnaps.add(snap);
+    }
     return snap;
   }
 
@@ -99,7 +103,8 @@ class NimbostratusUpdateBatcher {
 
   void rollback() {
     _batch = NimbostratusWriteBatch(batch: _firestore.batch());
-    for (final optimisticSnap in _optimisticSnaps) {
+    // Rollback all optimistic snaps in reverse order they were applied
+    for (final optimisticSnap in _optimisticSnaps.reversed) {
       _documents[optimisticSnap.reference.path]!.rollback(optimisticSnap);
     }
   }

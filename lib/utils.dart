@@ -19,3 +19,64 @@ extension QueryServerSnapshots<T> on Query<T> {
         .where((snap) => !snap.metadata.isFromCache);
   }
 }
+
+Map<String, dynamic> serializeData<T>(T data, ToFirestore<T>? toFirestore) {
+  if (data is Map<String, dynamic>) {
+    return data;
+  } else {
+    assert(
+      toFirestore != null,
+      'A toFirestore function must be provivded for converted-type server updates.',
+    );
+    return toFirestore!(data, null);
+  }
+}
+
+/// Attempt to replicate how the Cloud Firestore server updates document data in order to support client-side
+/// cache changes.
+/// TODO: The server merge logic is more advanced than this, figure out how replicate it fully on the client
+/// for cache-first updates.
+T? updateMerge<T>(
+  T? existingData,
+  T? newData,
+) {
+  if (newData == null) {
+    return null;
+  }
+
+  if (existingData == null) {
+    return newData;
+  }
+
+  if (existingData is Map<String, dynamic> && newData is Map<String, dynamic>) {
+    return {
+      ...existingData,
+      ...newData,
+    } as T;
+  } else {
+    return newData;
+  }
+}
+
+/// Attempt to replicate how the Cloud Firestore server sets document data in order to support client-side
+/// cache changes.
+/// TODO: The server merge logic is more advanced than this, figure out how replicate it fully on the client
+/// for cache-first updates.
+T? setMerge<T>(T? existingData, T? newData, [SetOptions? options]) {
+  final shouldMerge = options?.merge ?? false;
+
+  if (newData == null) {
+    return null;
+  }
+
+  if (newData is Map<String, dynamic> &&
+      existingData is Map<String, dynamic> &&
+      shouldMerge) {
+    return {
+      ...existingData,
+      ...newData,
+    } as T;
+  }
+
+  return newData;
+}

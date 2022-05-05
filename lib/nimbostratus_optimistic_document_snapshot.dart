@@ -7,6 +7,9 @@ class NimbostratusOptimisticDocumentSnapshot<T>
   NimbostratusDocumentSnapshot<T>? prev;
   NimbostratusDocumentSnapshot<T>? next;
 
+  /// Whether the optimistic update has already been emitted on the document stream.
+  bool hasEmitted = false;
+
   NimbostratusOptimisticDocumentSnapshot({
     required T? value,
     required Stream<NimbostratusDocumentSnapshot<T?>> stream,
@@ -18,14 +21,4 @@ class NimbostratusOptimisticDocumentSnapshot<T>
           value: value,
           metadata: metadata,
         );
-
-  static NimbostratusOptimisticDocumentSnapshot fromSnap<S>(
-      NimbostratusDocumentSnapshot<S> snap) {
-    return NimbostratusOptimisticDocumentSnapshot<S>(
-      reference: snap.reference,
-      value: snap.value,
-      stream: snap.stream,
-      metadata: snap.metadata,
-    );
-  }
 }

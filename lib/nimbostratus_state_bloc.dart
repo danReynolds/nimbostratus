@@ -10,13 +10,15 @@ class NimbostratusStateBloc<T>
   @override
   // ignore: avoid_renaming_method_parameters
   void add(snap) {
-    if (snap is NimbostratusOptimisticDocumentSnapshot<T?>) {
+    if (snap is NimbostratusOptimisticDocumentSnapshot<T?> &&
+        !snap.hasEmitted) {
       final currentSnap = value;
 
       if (currentSnap is NimbostratusOptimisticDocumentSnapshot<T?>) {
         currentSnap.next = snap;
       }
       snap.prev = value;
+      snap.hasEmitted = true;
     }
     super.add(snap);
   }
