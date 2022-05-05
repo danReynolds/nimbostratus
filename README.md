@@ -21,7 +21,7 @@ final snap = await Nimbostratus.instance.getDocument(
 );
 ```
 
-In this example, we request to read a Firestore document from the cache first, falling back to the server if it is unavailable. There are a few handly fetch policies to choose from which you can look at [here].
+In this example, we request to read a Firestore document from the cache first, falling back to the server if it is unavailable. There are a few handly fetch policies to choose from which you can look at [here](https://github.com/danReynolds/nimbostratus/blob/master/lib/policies.dart).
 
 ### Streaming documents 🌊
 
@@ -35,15 +35,17 @@ final documentStream = Nimbostratus.instance
   ).listen((snap) {
     print(snap.data());
     // { 'id': 'user-1', 'name': 'Anakin Skywalker' }
+    // Later when the document changes on the server:
+    // { 'id': 'user-1', 'name': 'Darth Vader' }
   });
 ```
 
-In this case, we're streaming the document `users/alice` from both the cache and the server. A fetch policy like this can be valuable since data can be eagerly returned from the cache in order to create a zippy user experience, while maintaining a subscription to changes from the server in the future.
+In this case, we're streaming the document `users/user-1` from both the cache and the server. A fetch policy like this can be valuable since data can be eagerly returned from the cache in order to create a zippy user experience, while maintaining a subscription to changes from the server in the future.
 
-Streamed documents will also update when changes are made to the cache. In the example below, we can manually update a value in the in-memory cache, causing all of the places across our app that are streaming that document to update:
+Streamed documents will also update when changes are made to the cache. In the example below, we can manually update a value in the in-memory cache, causing all of the places across the client that are streaming the document to update:
 
 ```dart
-final docRef = FirebaseFirestore.instance.collection('users').doc('example2');
+final docRef = FirebaseFirestore.instance.collection('users').doc('user-1');
 
 final documentStream = Nimbostratus.instance
   .streamDocument(
@@ -62,7 +64,7 @@ await NimbostratusInstance.updateDocument(
 );
 ```
 
-Executing and reacting to client-side cache changes is an intentional gap in the feature set of the default `cloud_firestore` library, which is meant to function as a relatively simple document-fetching layer rather than a document management layer. Nimbostratus aims to fill that gap and provide functionality similar to other data fetching libraries that offer more extensive client APIs.
+Executing and reacting to client-side cache changes is an intentional gap in the included feature set of the `cloud_firestore`, since it is meant to function as a relatively simple document-fetching layer rather than a document management layer. Nimbostratus aims to fill that gap and provide functionality similar to other data fetching libraries that have more extensive client APIs.
 
 ## Querying documents 🔎
 
@@ -92,7 +94,7 @@ await NimbostratusInstance.updateDocument(
 );
 ```
 
-The stream is subscribed to any changes to documents `user-1` and `user-2` so when we update the document with a `cacheAndServer` write policy, the stream will immediately receive the updated query snapshot from the cache:
+Since the stream is subscribed to any changes to documents `user-1` and `user-2` with a `cacheAndServer` write policy, the stream will immediately receive the updated query snapshot from the cache:
 
 ```dart
 // [
@@ -101,7 +103,7 @@ The stream is subscribed to any changes to documents `user-1` and `user-2` so wh
 // ]
 ```
 
-and then later emit another value based on the server response if it has any new data, such as if another field had been added to the document on the server since we last queried for it:
+and then later emit another value based on the server response if it differs from the initial cached response, such as if another field had been added to the document on the server since we last queried for it:
 
 ```dart
 // [
@@ -117,7 +119,7 @@ make it possible to present a user with an immediately updated value and make an
 
 ## Batch updates 📚
 
-Firestore supports batching of multiple document updates together with the [batch API](https://pub.dev/documentation/cloud_firestore/latest/cloud_firestore/FirebaseFirestore/batch.html). We can take advantage of the Nimbostratus data fetching and writing features when batching using the [batchUpdateDocuments] API:
+Firestore supports batching of multiple document updates together with the [batch API](https://pub.dev/documentation/cloud_firestore/latest/cloud_firestore/FirebaseFirestore/batch.html). We can take advantage of the Nimbostratus data fetching and writing features when batching using the [batchUpdateDocuments](https://pub.dev/documentation/nimbostratus/latest/nimbostratus/Nimbostratus/batchUpdateDocuments.html) API:
 
 ```dart
 await Nimbostratus.instance.batchUpdateDocuments((batch) async {
@@ -137,9 +139,9 @@ await Nimbostratus.instance.batchUpdateDocuments((batch) async {
 });
 ```
 
-In this example, we're using the `cacheAndServer` policy again to optimistically apply our cache updates. The difference when batching is that the server updates aren't finalized until the `commit()` call succeeds. If the server response fails and an exception is thrown by `commit`, the optimistic cached changes will be rolled back as well.
+In this example, we're using the `cacheAndServer` policy again to optimistically apply our cache updates. The difference when using Firestore batches is that the server updates aren't finalized until the `commit()` call succeeds. If the server response fails and an exception is thrown by `commit()`, the optimistic cached changes will be rolled back as well.
 
-There are other cases where you still want to perform optimistic updates in the cache for remote updates that aren't made through Firestore, such as updating a document in Firestore indirectly through a Cloud Function.
+There are other cases where you still want to perform optimistic updates in the cache for remote updates that aren't made through Firestore, such as updating a document in Firestore indirectly through a Cloud Function:
 
 ```dart
 await Nimbostratus.instance.batchUpdateDocuments((batch) async {
@@ -159,8 +161,7 @@ await Nimbostratus.instance.batchUpdateDocuments((batch) async {
 });
 ```
 
-In this case, we optimistically update documents in the cache before making the call the Cloud Function. If the call API call fails and throws an error, our optimistic cache updates will automatically be rolled back. If the batch update function finishes without throwing
-an error, then the optimistic updates are committed and made permanent.
+In this example, we optimistically update documents in the cache before making the call the Cloud Function. If the call fails and throws an error, the optimistic cache updates will automatically be rolled back. If the batch update function finishes without throwing an error, then the optimistic updates are committed and made permanent.
 
 ### Gotchas
 
