@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nimbostratus/nimbostratus.dart';
-import 'package:restate/restate.dart';
+import 'package:nimbostratus/nimbostratus_state_bloc.dart';
 
 /// An extension of the [WriteBatch] with support for making changes and rolling back
 /// the Nimbostratus in-memory cache.
@@ -12,7 +12,7 @@ class NimbostratusWriteBatch implements WriteBatch {
     required this.batch,
   });
 
-  void addListener(Future<void> Function() callback) {
+  void onCommit(Future<void> Function() callback) {
     listeners.add(callback);
   }
 
@@ -42,14 +42,14 @@ class NimbostratusWriteBatch implements WriteBatch {
 
 class NimbostratusUpdateBatcher {
   final Nimbostratus store;
-  final Map<String, StateBloc<NimbostratusDocumentSnapshot>> _documents;
+  final Map<String, NimbostratusStateBloc> _documents;
   final FirebaseFirestore _firestore;
   late NimbostratusWriteBatch _batch;
 
   NimbostratusUpdateBatcher({
     required this.store,
     required FirebaseFirestore firestore,
-    required Map<String, StateBloc<NimbostratusDocumentSnapshot>> documents,
+    required Map<String, NimbostratusStateBloc> documents,
   })  : _documents = documents,
         _firestore = firestore,
         _batch = NimbostratusWriteBatch(batch: firestore.batch());

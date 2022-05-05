@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class NullSnapshotMetadata implements SnapshotMetadata {
+class CacheSnapshotMetadata implements SnapshotMetadata {
   @override
   bool get isFromCache => true;
   @override
