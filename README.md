@@ -1,6 +1,6 @@
 # Nimbostratus 🌩
 
-Nimbostratus is a reactive data-fetching and cache management library built on top of [Cloud Firestore](https://pub.dev/packages/cloud_firestore).
+Nimbostratus is a reactive data-fetching and client-side cache management library built on top of [Cloud Firestore](https://pub.dev/packages/cloud_firestore).
 
 The Cloud Firestore client API for Flutter is great at fetching and streaming documents. Nimbostratus extends that API to include some additional features:
 
