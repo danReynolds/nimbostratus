@@ -432,9 +432,9 @@ class Nimbostratus {
             final docBloc = _documents[doc.reference.path];
 
             // If the document is already in the NS cache, return the NS value. Otherwise
-            // cache it to NS and fallback to the FS cache value.
+            // cache it to NS and fallback to the Firestore cache value.
             if (docBloc != null) {
-              return docBloc.value as NimbostratusDocumentSnapshot<T>;
+              return docBloc.value as NimbostratusDocumentSnapshot<T?>;
             }
             return _updateDocBloc(doc);
           }).toList();
