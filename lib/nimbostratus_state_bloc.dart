@@ -40,8 +40,7 @@ class NimbostratusStateBloc<T>
     final prev = snap.prev;
     final next = snap.next;
 
-    // If the current value is the snap we're trying to roll back, then emit
-    // the previous snap whether it's optimistic or not.
+    // If the current value is the optimistic snap that is being rolled back, then we need to re-emit the previous value.
     if (currentSnap == snap) {
       // If there is no previous value, meaning that the first snap for this document was an optimistic snap,
       // then create a null non-optimistic snap and replay that.
