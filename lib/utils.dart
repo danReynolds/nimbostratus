@@ -20,15 +20,33 @@ extension QueryServerSnapshots<T> on Query<T> {
   }
 }
 
-Map<String, dynamic> serializeData<T>(T data, ToFirestore<T>? toFirestore) {
-  if (data is Map<String, dynamic>) {
+Map<String, dynamic> _pickData(Map<String, dynamic> data, Set<String>? keys) {
+  if (keys == null || keys.isEmpty) {
     return data;
+  }
+
+  return keys.fold(
+    {},
+    (acc, key) => {
+      ...acc,
+      key: data[key],
+    },
+  );
+}
+
+Map<String, dynamic> serializeData<T>({
+  required T data,
+  required ToFirestore<T>? toFirestore,
+  required Set<String>? mergeFields,
+}) {
+  if (data is Map<String, dynamic>) {
+    return _pickData(data, mergeFields);
   } else {
     assert(
       toFirestore != null,
       'A toFirestore function must be provivded for converted-type server updates.',
     );
-    return toFirestore!(data, null);
+    return _pickData(toFirestore!(data, null), mergeFields);
   }
 }
 

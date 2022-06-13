@@ -170,6 +170,10 @@ class Nimbostratus {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     SetOptions? options,
+
+    /// The set of fields to merge into the document. By default all fields
+    /// are merged.
+    Set<String>? mergeFields,
   }) {
     return _setDocument(
       ref,
@@ -238,12 +242,17 @@ class Nimbostratus {
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
+
+    /// The set of fields to merge into the document. By default all fields
+    /// are merged.
+    Set<String>? mergeFields,
   }) {
     return _updateDocument(
       ref,
       data,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
+      mergeFields: mergeFields,
     );
   }
 
@@ -254,10 +263,15 @@ class Nimbostratus {
     ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
+    Set<String>? mergeFields,
   }) async {
     switch (writePolicy) {
       case WritePolicy.serverFirst:
-        final serializedData = serializeData(data, toFirestore);
+        final serializedData = serializeData(
+          data: data,
+          toFirestore: toFirestore,
+          mergeFields: mergeFields,
+        );
 
         if (batch != null) {
           batch.update(ref, serializedData);
@@ -278,6 +292,7 @@ class Nimbostratus {
           writePolicy: WritePolicy.cacheOnly,
           isOptimistic: true,
           batch: batch,
+          mergeFields: mergeFields,
         );
         try {
           final serverSnap = await _updateDocument(
@@ -286,6 +301,7 @@ class Nimbostratus {
             writePolicy: WritePolicy.serverFirst,
             toFirestore: toFirestore,
             batch: batch,
+            mergeFields: mergeFields,
           );
           return serverSnap;
         } catch (e) {
@@ -323,12 +339,14 @@ class Nimbostratus {
     T Function(T? currentValue) modifyFn, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
+    Set<String>? mergeFields,
   }) async {
     return _modifyDocument<T>(
       ref,
       modifyFn,
       toFirestore: toFirestore,
       writePolicy: writePolicy,
+      mergeFields: mergeFields,
     );
   }
 
@@ -339,6 +357,7 @@ class Nimbostratus {
     ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
+    Set<String>? mergeFields,
   }) async {
     final snap =
         await getDocument<T>(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
@@ -350,6 +369,7 @@ class Nimbostratus {
       writePolicy: writePolicy,
       batch: batch,
       isOptimistic: isOptimistic,
+      mergeFields: mergeFields,
     );
   }
 
