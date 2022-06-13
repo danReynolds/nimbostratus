@@ -52,6 +52,17 @@ enum WritePolicy {
   serverFirst
 }
 
+enum DeletePolicy {
+  /// Specifies that the data should be deleted only from the cache and not persisted to the server.
+  cacheOnly,
+
+  /// Specifies that the data should be deleted from the cache and server simultaneously. If the write to the server fails, then the delete to the cache will be rolled back.
+  cacheAndServer,
+
+  // Specifies that the data should be deleted on the server first, followed by the cache when the delete from the server completes.
+  serverFirst
+}
+
 GetFetchPolicy convertStreamFetchPolicyToGetFetchPolicy(
   StreamFetchPolicy fetchPolicy,
 ) {

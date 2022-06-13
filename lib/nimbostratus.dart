@@ -355,11 +355,32 @@ class Nimbostratus {
 
   // Deletes a Firestore document from the server and removes it from the in-memory cache.
   Future<void> deleteDocument<T>(
-    DocumentReference<T> ref,
-  ) async {
-    final snap = await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
-    await ref.delete();
-    _updateDocBloc(snap.withValue(null));
+    DocumentReference<T> ref, {
+    DeletePolicy deletePolicy = DeletePolicy.serverFirst,
+  }) async {
+    switch (deletePolicy) {
+      case DeletePolicy.serverFirst:
+        final snap =
+            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+        await ref.delete();
+        _updateDocBloc(snap.withValue(null));
+        break;
+      case DeletePolicy.cacheOnly:
+        final snap =
+            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+        _updateDocBloc(snap.withValue(null));
+        break;
+      case DeletePolicy.cacheAndServer:
+        final snap =
+            await getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
+        _updateDocBloc(snap.withValue(null), isOptimistic: true);
+        try {
+          await ref.delete();
+        } catch (e) {
+          _rollbackOptimisticUpdate(snap);
+          rethrow;
+        }
+    }
   }
 
   /// Retrieves a Firestore document from the in-memory cache or server according to the specified [GetFetchPolicy].
@@ -380,7 +401,7 @@ class Nimbostratus {
 
         try {
           // If the data was not available in the Firestore cache, it throws an error.
-          // We then fallback to fetching the data from the server.
+          // We can then fallback to fetching the data from the server for server-supported fetch policies.
           snap = await docRef.get(const GetOptions(source: Source.cache));
 
           // The documentation indicates that an exception should be thrown if the document
