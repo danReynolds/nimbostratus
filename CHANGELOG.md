@@ -1,3 +1,7 @@
+## 0.0.5
+
+Adds support for field specification when updating documents.
+
 ## 0.0.4
 
 Fix bug with casting documents.
