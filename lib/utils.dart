@@ -98,3 +98,22 @@ T? setMerge<T>(T? existingData, T? newData, [SetOptions? options]) {
 
   return newData;
 }
+
+typedef NimbostratusFromFirestore<T> = T? Function(T? existing, T? incoming);
+
+/// A merge function for specifying how a server response from Firestore should be merged into
+/// the cache given the existing and incoming data.
+T? mergeFromFirestore<T>(
+  DocumentSnapshot<T?>? existing,
+  DocumentSnapshot<T?> incoming,
+  NimbostratusFromFirestore<T>? fromFirestore,
+) {
+  if (existing == null || fromFirestore == null) {
+    return incoming.data();
+  }
+
+  return fromFirestore(
+    existing.data(),
+    incoming.data(),
+  );
+}

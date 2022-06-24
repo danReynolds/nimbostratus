@@ -67,6 +67,7 @@ class Nimbostratus {
   NimbostratusDocumentSnapshot<T?> _updateDocBloc<T>(
     DocumentSnapshot<T?> snap, {
     bool isOptimistic = false,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) {
     final refPath = snap.reference.path;
 
@@ -85,7 +86,7 @@ class Nimbostratus {
     if (!deepEq(previousSnap?.data(), snapData)) {
       docBloc.add(
         NimbostratusDocumentSnapshot<T?>(
-          value: snapData,
+          value: mergeFromFirestore(previousSnap, snap, fromFirestore),
           reference: snap.reference,
           metadata: snap.metadata,
           stream: docBloc.nonNullStream,
@@ -171,6 +172,10 @@ class Nimbostratus {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     SetOptions? options,
 
+    /// A merge function for merging an incoming server response from Firestore
+    /// into the Nimbostratus cache.
+    NimbostratusFromFirestore<T>? fromFirestore,
+
     /// The set of fields to merge into the document. By default all fields
     /// are merged.
     Set<String>? mergeFields,
@@ -180,6 +185,7 @@ class Nimbostratus {
       data,
       writePolicy: writePolicy,
       options: options,
+      fromFirestore: fromFirestore,
     );
   }
 
@@ -189,12 +195,13 @@ class Nimbostratus {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     SetOptions? options,
     bool isOptimistic = false,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     switch (writePolicy) {
       case WritePolicy.serverFirst:
         await ref.set(data, options);
         final snap = await ref.get(const GetOptions(source: Source.cache));
-        return _updateDocBloc(snap);
+        return _updateDocBloc(snap, fromFirestore: fromFirestore);
       case WritePolicy.cacheAndServer:
         final cachedSnap = await _setDocument(
           ref,
@@ -207,6 +214,7 @@ class Nimbostratus {
             ref,
             data,
             writePolicy: WritePolicy.serverFirst,
+            fromFirestore: fromFirestore,
           );
           return serverSnap;
         } catch (e) {
@@ -241,7 +249,13 @@ class Nimbostratus {
     DocumentReference<T> ref,
     T data, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
+
+    /// A serialization function for the data sent to Firestore.
     ToFirestore<T>? toFirestore,
+
+    /// A merge function for merging an incoming server response from Firestore
+    /// into the Nimbostratus cache.
+    NimbostratusFromFirestore<T>? fromFirestore,
 
     /// The set of fields to merge into the document. By default all fields
     /// are merged.
@@ -253,6 +267,7 @@ class Nimbostratus {
       writePolicy: writePolicy,
       toFirestore: toFirestore,
       mergeFields: mergeFields,
+      fromFirestore: fromFirestore,
     );
   }
 
@@ -264,6 +279,7 @@ class Nimbostratus {
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
     Set<String>? mergeFields,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     switch (writePolicy) {
       case WritePolicy.serverFirst:
@@ -277,13 +293,13 @@ class Nimbostratus {
           batch.update(ref, serializedData);
           batch.onCommit(() async {
             final snap = await ref.get(const GetOptions(source: Source.cache));
-            _updateDocBloc(snap);
+            _updateDocBloc(snap, fromFirestore: fromFirestore);
           });
           return getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
         } else {
           await ref.update(serializedData);
           final snap = await ref.get(const GetOptions(source: Source.cache));
-          return _updateDocBloc(snap);
+          return _updateDocBloc(snap, fromFirestore: fromFirestore);
         }
       case WritePolicy.cacheAndServer:
         final cachedSnap = await _updateDocument(
@@ -302,6 +318,7 @@ class Nimbostratus {
             toFirestore: toFirestore,
             batch: batch,
             mergeFields: mergeFields,
+            fromFirestore: fromFirestore,
           );
           return serverSnap;
         } catch (e) {
@@ -340,6 +357,7 @@ class Nimbostratus {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
     Set<String>? mergeFields,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     return _modifyDocument<T>(
       ref,
@@ -347,6 +365,7 @@ class Nimbostratus {
       toFirestore: toFirestore,
       writePolicy: writePolicy,
       mergeFields: mergeFields,
+      fromFirestore: fromFirestore,
     );
   }
 
@@ -358,6 +377,7 @@ class Nimbostratus {
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
     Set<String>? mergeFields,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     final snap =
         await getDocument<T>(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
@@ -370,6 +390,7 @@ class Nimbostratus {
       batch: batch,
       isOptimistic: isOptimistic,
       mergeFields: mergeFields,
+      fromFirestore: fromFirestore,
     );
   }
 
@@ -407,6 +428,7 @@ class Nimbostratus {
   Future<NimbostratusDocumentSnapshot<T?>> getDocument<T>(
     DocumentReference<T> docRef, {
     GetFetchPolicy fetchPolicy = GetFetchPolicy.serverOnly,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     DocumentSnapshot<T?> snap;
 
@@ -440,22 +462,22 @@ class Nimbostratus {
             return _createDocBloc(reference: docRef, value: null).value!;
           }
         }
-        break;
+        return _updateDocBloc(snap);
       case GetFetchPolicy.serverOnly:
         try {
-          snap = await docRef.get();
+          final snap = await docRef.get();
+          return _updateDocBloc(snap, fromFirestore: fromFirestore);
         } on FirebaseException {
           return _createDocBloc(value: null, reference: docRef).value!;
         }
     }
-
-    return _updateDocBloc(snap);
   }
 
   /// Executes a Firestore [Query] for documents against the in-memory cache or server according to the specified [GetFetchPolicy].
   Future<List<NimbostratusDocumentSnapshot<T?>>> getDocuments<T>(
     Query<T> docQuery, {
     GetFetchPolicy fetchPolicy = GetFetchPolicy.serverOnly,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     QuerySnapshot<T>? snap;
 
@@ -490,19 +512,22 @@ class Nimbostratus {
       case GetFetchPolicy.serverOnly:
         try {
           snap = await docQuery.get();
+          return snap.docs
+              .map(
+                (snap) => _updateDocBloc(snap, fromFirestore: fromFirestore),
+              )
+              .toList();
         } on FirebaseException {
           return [];
         }
-        break;
     }
-
-    return snap.docs.map((snap) => _updateDocBloc(snap)).toList();
   }
 
   /// Streams changes to a Firestore document from the in-memory cache or server according to the specified [StreamFetchPolicy].
   Stream<NimbostratusDocumentSnapshot<T?>> streamDocument<T>(
     DocumentReference<T> ref, {
     StreamFetchPolicy fetchPolicy = StreamFetchPolicy.serverFirst,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) {
     switch (fetchPolicy) {
       case StreamFetchPolicy.serverFirst:
@@ -512,6 +537,7 @@ class Nimbostratus {
           getDocument(
             ref,
             fetchPolicy: convertStreamFetchPolicyToGetFetchPolicy(fetchPolicy),
+            fromFirestore: fromFirestore,
           ),
         ).switchMap((_) {
           return _documents[ref.path]!
@@ -528,7 +554,7 @@ class Nimbostratus {
           streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly)
               .takeUntil(serverStream),
           serverStream.cast<DocumentSnapshot<T?>>().switchMap((snap) {
-            return _updateDocBloc(snap).stream;
+            return _updateDocBloc(snap, fromFirestore: fromFirestore).stream;
           }),
           // The cache vs server streams can emit a duplicate event transitioning between them. Distinct the results
           // to remove that duplicate event.
@@ -539,12 +565,14 @@ class Nimbostratus {
           streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly)
               .takeUntil(serverStream),
           serverStream.cast<DocumentSnapshot<T?>>().switchMap((snap) {
-            return _updateDocBloc(snap).stream;
+            return _updateDocBloc(snap, fromFirestore: fromFirestore).stream;
           }),
         ]).distinct();
       case StreamFetchPolicy.serverOnly:
         return ref.serverSnapshots().switchMap((snap) {
-          return Stream.value(_updateDocBloc(snap));
+          return Stream.value(
+            _updateDocBloc(snap, fromFirestore: fromFirestore),
+          );
         });
     }
   }
@@ -553,6 +581,7 @@ class Nimbostratus {
   Stream<List<NimbostratusDocumentSnapshot<T?>>> streamDocuments<T>(
     Query<T> docQuery, {
     StreamFetchPolicy fetchPolicy = StreamFetchPolicy.serverFirst,
+    NimbostratusFromFirestore<T>? fromFirestore,
   }) {
     switch (fetchPolicy) {
       case StreamFetchPolicy.serverFirst:
@@ -562,6 +591,7 @@ class Nimbostratus {
           getDocuments(
             docQuery,
             fetchPolicy: convertStreamFetchPolicyToGetFetchPolicy(fetchPolicy),
+            fromFirestore: fromFirestore,
           ),
         ).switchMap((snapshots) {
           if (snapshots.isEmpty) {
@@ -586,7 +616,11 @@ class Nimbostratus {
             }
 
             final streams = docSnaps
-                .map((docSnap) => _updateDocBloc(docSnap).stream)
+                .map(
+                  (docSnap) =>
+                      _updateDocBloc(docSnap, fromFirestore: fromFirestore)
+                          .stream,
+                )
                 .toList();
             return CombineLatestStream.list(streams);
           }),
@@ -601,7 +635,9 @@ class Nimbostratus {
           serverStream.switchMap((snap) {
             final docSnaps = snap.docs;
             final streams = docSnaps
-                .map((docSnap) => _updateDocBloc(docSnap).stream)
+                .map((docSnap) =>
+                    _updateDocBloc(docSnap, fromFirestore: fromFirestore)
+                        .stream)
                 .toList();
             return CombineLatestStream.list(streams);
           }),
@@ -611,7 +647,7 @@ class Nimbostratus {
           final docSnaps = snap.docs;
 
           final snaps = docSnaps.map((docSnap) {
-            return _updateDocBloc(docSnap);
+            return _updateDocBloc(docSnap, fromFirestore: fromFirestore);
           }).toList();
 
           return Stream.value(snaps);
