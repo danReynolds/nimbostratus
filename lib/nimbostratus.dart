@@ -266,7 +266,6 @@ class Nimbostratus {
       data,
       writePolicy: writePolicy,
       toFirestore: toFirestore,
-      mergeFields: mergeFields,
       fromFirestore: fromFirestore,
     );
   }
@@ -278,7 +277,6 @@ class Nimbostratus {
     ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
-    Set<String>? mergeFields,
     NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     switch (writePolicy) {
@@ -286,7 +284,6 @@ class Nimbostratus {
         final serializedData = serializeData(
           data: data,
           toFirestore: toFirestore,
-          mergeFields: mergeFields,
         );
 
         if (batch != null) {
@@ -308,7 +305,6 @@ class Nimbostratus {
           writePolicy: WritePolicy.cacheOnly,
           isOptimistic: true,
           batch: batch,
-          mergeFields: mergeFields,
         );
         try {
           final serverSnap = await _updateDocument(
@@ -317,7 +313,6 @@ class Nimbostratus {
             writePolicy: WritePolicy.serverFirst,
             toFirestore: toFirestore,
             batch: batch,
-            mergeFields: mergeFields,
             fromFirestore: fromFirestore,
           );
           return serverSnap;
@@ -389,7 +384,6 @@ class Nimbostratus {
       writePolicy: writePolicy,
       batch: batch,
       isOptimistic: isOptimistic,
-      mergeFields: mergeFields,
       fromFirestore: fromFirestore,
     );
   }
