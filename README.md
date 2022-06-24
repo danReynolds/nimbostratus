@@ -40,9 +40,9 @@ final documentStream = Nimbostratus.instance
   });
 ```
 
-In this case, we're streaming the document `users/user-1` from both the cache and the server. A fetch policy like this can be valuable since data can be eagerly returned from the cache in order to create a zippy user experience, while maintaining a subscription to changes from the server in the future.
+In the above code we're streaming the document `users/user-1` from both the cache and the server. A fetch policy like this can be valuable since data can be eagerly returned from the cache in order to create a zippy user experience, while maintaining a subscription to changes from the server in the future.
 
-Streamed documents will also update when changes are made to the cache. In the example below, we can manually update a value in the in-memory cache, causing all of the places across the client that are streaming the document to update:
+Streamed documents will also update when changes are made to the cache. As shown below, we can manually update a value in the in-memory cache, causing all of the places across the client that are streaming the document to update:
 
 ```dart
 final docRef = FirebaseFirestore.instance.collection('users').doc('user-1');
