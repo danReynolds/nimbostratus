@@ -1,3 +1,7 @@
+## 0.0.6
+
+Adds a fromFirestore API for filtering what fields should be merged into the cache from a server response.
+
 ## 0.0.5
 
 Adds support for field specification when updating documents.

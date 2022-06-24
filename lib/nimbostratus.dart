@@ -175,10 +175,6 @@ class Nimbostratus {
     /// A merge function for merging an incoming server response from Firestore
     /// into the Nimbostratus cache.
     NimbostratusFromFirestore<T>? fromFirestore,
-
-    /// The set of fields to merge into the document. By default all fields
-    /// are merged.
-    Set<String>? mergeFields,
   }) {
     return _setDocument(
       ref,
@@ -256,10 +252,6 @@ class Nimbostratus {
     /// A merge function for merging an incoming server response from Firestore
     /// into the Nimbostratus cache.
     NimbostratusFromFirestore<T>? fromFirestore,
-
-    /// The set of fields to merge into the document. By default all fields
-    /// are merged.
-    Set<String>? mergeFields,
   }) {
     return _updateDocument(
       ref,
@@ -351,7 +343,6 @@ class Nimbostratus {
     T Function(T? currentValue) modifyFn, {
     WritePolicy writePolicy = WritePolicy.serverFirst,
     ToFirestore<T>? toFirestore,
-    Set<String>? mergeFields,
     NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     return _modifyDocument<T>(
@@ -359,7 +350,6 @@ class Nimbostratus {
       modifyFn,
       toFirestore: toFirestore,
       writePolicy: writePolicy,
-      mergeFields: mergeFields,
       fromFirestore: fromFirestore,
     );
   }
@@ -371,7 +361,6 @@ class Nimbostratus {
     ToFirestore<T>? toFirestore,
     NimbostratusWriteBatch? batch,
     bool isOptimistic = false,
-    Set<String>? mergeFields,
     NimbostratusFromFirestore<T>? fromFirestore,
   }) async {
     final snap =
