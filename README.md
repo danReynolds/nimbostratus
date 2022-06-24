@@ -182,7 +182,7 @@ In this example, we optimistically update documents in the cache before making t
     });
   ```
 
-  and then at a later time, a new document with `first_name` 'Ben' is added in the cache, this query will not update with that new user, since it does not know that they should be included. The opposite is true if we update `user-2` to `first_name: Han`. The query will still re-emit the `user-2` on the stream, even though they no longer satisfy the query's filters. In order to stream documents that re-evaluate the query, you will need to use a server policy like `StreamFetchPolicy.cacheAndServer` or `StreamFetchPolicy.serverOnly`.
+  and then at a later time, a new document with `first_name: 'Ben'` is added in the cache, this query will not update with that new user, since it does not know that they should be included. The opposite is also true if we update `user-2` to `first_name: 'Han'`. The query will still re-emit the `user-2` on the stream, even though they no longer satisfy the query's filters. In order to stream documents that rerun the query and re-evaluate its filters, you will need to use a server policy like `StreamFetchPolicy.cacheAndServer` or `StreamFetchPolicy.serverOnly`.
   
 3. Cache updates currently do not merge data the same as on the server. The [set](https://pub.dev/documentation/cloud_firestore/latest/cloud_firestore/DocumentReference/set.html) and [update](https://pub.dev/documentation/cloud_firestore/latest/cloud_firestore/DocumentReference/update.html) APIs from Firestore support some [advanced data merging options](https://pub.dev/documentation/cloud_firestore_platform_interface/latest/cloud_firestore_platform_interface/SetOptions-class.html) for document fields. When we make an update to the cache like this:
 
@@ -197,4 +197,4 @@ In this example, we optimistically update documents in the cache before making t
   );
   ```
 
-  The first cache update uses just a simple merge of the maps and not making the more advanced nested field path changes that will subsequently be reflected in the server response. When the server response comes back, the cache will also be updated to that fully merged server update. This is currently a TODO that if anyone wants to work on to achieve parity with the server update feel free to reach out.
+The optimistic cache update just uses a simple merge of the maps and not the more advanced nested field path changes that will subsequently be reflected in the server response. When the server response comes back, the cache will also be updated to that fully merged server update. This is currently a TODO that if anyone wants to work on to achieve parity with the server code feel free to reach out.
