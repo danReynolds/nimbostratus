@@ -214,10 +214,9 @@ class Nimbostratus {
           );
           return serverSnap;
         } catch (e) {
-          // On a server error, rollback the optimistic update and rethrow.
-          if (cachedSnap.isOptimistic) {
-            _rollbackOptimisticUpdate(cachedSnap);
-          }
+          // If an error is encountered when trying to update the data on the server,
+          // rollback the cache change and rethrow the error.
+          _rollbackOptimisticUpdate(cachedSnap);
           rethrow;
         }
 
@@ -311,9 +310,7 @@ class Nimbostratus {
         } catch (e) {
           // If an error is encountered when trying to update the data on the server,
           // rollback the cache change and rethrow the error.
-          if (cachedSnap.isOptimistic) {
-            _rollbackOptimisticUpdate(cachedSnap);
-          }
+          _rollbackOptimisticUpdate(cachedSnap);
           rethrow;
         }
       case WritePolicy.cacheOnly:
