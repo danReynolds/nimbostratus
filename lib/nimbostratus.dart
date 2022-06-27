@@ -94,6 +94,7 @@ class Nimbostratus {
       reference: snap.reference,
       metadata: snap.metadata,
       isOptimistic: isOptimistic,
+      fromFirestore: fromFirestore,
     );
   }
 
