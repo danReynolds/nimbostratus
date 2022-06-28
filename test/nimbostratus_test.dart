@@ -1137,6 +1137,121 @@ void main() async {
         });
       });
     });
+
+    group('with a cache-and-server-first fetch policy', () {
+      const fetchPolicy = StreamFetchPolicy.cacheAndServerFirst;
+
+      group('with cache-then-server data', () {
+        test('should only emit the later server data', () async {
+          final docRef = store.collection('users').doc('alice');
+          final stream = Nimbostratus.instance
+              .streamDocument(
+                docRef,
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((snap) => snap.data()),
+            emitsInOrder([
+              null,
+              {
+                'name': 'Alice',
+                'sources': [Source.cache.name, Source.server.name],
+              },
+            ]),
+          );
+
+          await stream.first;
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name, Source.server.name],
+          });
+        });
+      });
+
+      group('with server-then-cache data', () {
+        test('should emit the server data and then the cache data', () async {
+          final docRef = store.collection('users').doc('alice');
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name, Source.server.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocument(
+                docRef,
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.distinct().map((snap) => snap.data()),
+            emitsInOrder([
+              {
+                'name': 'Alice',
+                'sources': [Source.cache.name, Source.server.name],
+              },
+              {
+                'name': 'Bob',
+                'sources': [Source.cache.name],
+              },
+            ]),
+          );
+
+          await stream.first;
+
+          await Nimbostratus.instance.setDocument(
+            docRef,
+            {
+              'name': 'Bob',
+              'sources': [Source.cache.name],
+            },
+            writePolicy: WritePolicy.cacheOnly,
+          );
+        });
+      });
+
+      group('with server-then-server data', () {
+        test('should emit all server data', () async {
+          final docRef = store.collection('users').doc('alice');
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name, Source.server.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocument(
+                docRef,
+                fetchPolicy: StreamFetchPolicy.cacheAndServerFirst,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((snap) => snap.data()),
+            emitsInOrder([
+              {
+                'name': 'Alice',
+                'sources': [Source.cache.name, Source.server.name],
+              },
+              {
+                'name': 'Bob',
+                'sources': [Source.cache.name, Source.server.name],
+              },
+            ]),
+          );
+
+          await stream.first;
+
+          await docRef.set({
+            'name': 'Bob',
+            'sources': [Source.cache.name, Source.server.name],
+          });
+        });
+      });
+    });
   });
 
   group('streamDocuments', () {
@@ -1776,7 +1891,7 @@ void main() async {
           final docRef = store.collection('users').doc('alice');
           await docRef.set({
             'name': 'Alice',
-            'sources': [Source.server.name],
+            'sources': [Source.cache.name, Source.server.name],
           });
 
           final stream = Nimbostratus.instance
@@ -1792,7 +1907,7 @@ void main() async {
               [
                 {
                   'name': 'Alice',
-                  'sources': [Source.server.name],
+                  'sources': [Source.cache.name, Source.server.name],
                 }
               ],
             ]),
@@ -1926,6 +2041,174 @@ void main() async {
       });
     });
 
+    group('with a cache-and-server-first fetch policy', () {
+      const fetchPolicy = StreamFetchPolicy.cacheAndServerFirst;
+
+      group('with cache-then-server data', () {
+        test('should only stream the server data', () async {
+          final docRef = store.collection('users').doc('alice');
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocuments(
+                store.collection('users'),
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
+            emitsInOrder([
+              [],
+              [
+                {
+                  'name': 'Alice',
+                  'sources': [Source.server.name],
+                }
+              ],
+            ]),
+          );
+
+          await stream.first;
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.server.name],
+          });
+        });
+      });
+
+      group('with cache-then-server data', () {
+        test('should only stream the server data', () async {
+          final docRef = store.collection('users').doc('alice');
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocuments(
+                store.collection('users'),
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
+            emitsInOrder([
+              [],
+              [
+                {
+                  'name': 'Alice',
+                  'sources': [Source.server.name],
+                }
+              ],
+            ]),
+          );
+
+          await stream.first;
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.server.name],
+          });
+        });
+      });
+
+      group('with server-then-cache', () {
+        test('should stream the server and then the cached data', () async {
+          final docRef = store.collection('users').doc('alice');
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.server.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocuments(
+                store.collection('users'),
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
+            emitsInOrder([
+              [
+                {
+                  'name': 'Alice',
+                  'sources': [Source.server.name],
+                },
+              ],
+              [
+                {
+                  'name': 'Alice 2',
+                  'sources': [Source.cache.name],
+                },
+              ]
+            ]),
+          );
+
+          await stream.first;
+
+          await Nimbostratus.instance.setDocument(
+            docRef,
+            {
+              'name': 'Alice 2',
+              'sources': [Source.cache.name],
+            },
+            writePolicy: WritePolicy.cacheOnly,
+          );
+        });
+      });
+
+      group('with server then server data', () {
+        test('should stream all the server data', () async {
+          final docRef = store.collection('users').doc('alice');
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.server.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocuments(
+                store.collection('users'),
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
+            emitsInOrder([
+              [
+                {
+                  'name': 'Alice',
+                  'sources': [Source.server.name],
+                },
+              ],
+              [
+                {
+                  'name': 'Alice 2',
+                  'sources': [Source.server.name],
+                },
+              ]
+            ]),
+          );
+
+          await stream.first;
+
+          await docRef.set({
+            'name': 'Alice 2',
+            'sources': [Source.server.name],
+          });
+        });
+      });
+    });
+
     group('with a cache-and-server-once fetch policy', () {
       const fetchPolicy = StreamFetchPolicy.cacheAndServerOnce;
 
@@ -2006,7 +2289,7 @@ void main() async {
       });
 
       group('with initial server data', () {
-        test('should stream the cached data', () async {
+        test('should stream the server data', () async {
           final docRef = store.collection('users').doc('alice');
 
           await docRef.set({
@@ -2073,7 +2356,7 @@ void main() async {
 
           // This should not trigger a change since it is only listening to the first server event.
           await docRef.set({
-            'name': 'Alice',
+            'name': 'Alice 2',
             'sources': [Source.server.name],
           });
 
