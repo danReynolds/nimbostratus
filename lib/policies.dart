@@ -16,29 +16,32 @@ enum GetFetchPolicy {
 /// The policy options that determine whether Cloud Firestore documents should be returned
 /// from the cache only, server only, or a combination of both over time for stream-based requests.
 enum StreamFetchPolicy {
-  /// Specifies that the initial set of documents should be delivered from the cache if present, otherwise requested from the server.
-  /// Subsequent updates are delivered whenever any of the initial entries returned change in the cache.
+  /// Specifies that documents should initially be delivered on the stream from the cache if present, otherwise requested from the server.
+  /// Subsequent updates are delivered whenever any of the initial documents returned change in the cache.
   cacheFirst,
 
   /// Specifies that documents should only be delivered on the stream from changes to documents in the cache.
   cacheOnly,
 
+  /// Specifies that document should be delivered on the stream from the server once, blocking on waiting for server data before returning data from the cache and then
+  /// emitting continued cache updates. Helpful when trying to show the latest value first to prevent staleness and then continue with changes made to the cache.
+  serverFirst,
+
   /// Specifies that documents should only be delivered on the stream from changes to the server snapshot and never changes
   /// to those documents in the cache.
   serverOnly,
 
-  /// Specifies that documents should be delivered on the stream once from the server first and then subsequently from the cache
-  /// whenever any of the entries the server returned change in the cache.
-  serverFirst,
-
-  /// Specifies that the stream should immediately subscribe to changes from both the cache and server, updating whenever either has
-  /// updated data.
+  /// Specifies that documents should be delivered on the stream from both the cache and server whenever they have updated data.
   cacheAndServer,
 
-  /// Specifies that the stream should immediately subscribe to changes from both the cache and server similarly to [cacheAndServer], but only emits a
-  ///  single update from the server and then continued changes from the cache. Helpful when trying to show data immediately (via cache) but fetching
-  /// the updated data one time to prevent staleness.
-  cacheAndServerOnce
+  /// Specifies that documents should initially delivered on the stream from both the cache and server with updated data similarly to [cacheAndServer],
+  /// but only emits a single update from the server and then continue with changes made to the cache. Helpful when trying to show data immediately (via cache)
+  /// but fetching the updated data once to prevent long-term staleness.
+  cacheAndServerOnce,
+
+  /// Specifies that documents should be delivered on the stream from the server first and then subsequently whenever either the cache or
+  /// server have updated data the same as [cacheAndServer].
+  cacheAndServerFirst,
 }
 
 enum WritePolicy {

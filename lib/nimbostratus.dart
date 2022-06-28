@@ -524,18 +524,28 @@ class Nimbostratus {
               .nonNullStream
               .cast<NimbostratusDocumentSnapshot<T?>>();
         });
+      case StreamFetchPolicy.cacheAndServerFirst:
+        return Stream.fromFuture(
+          getDocument(
+            ref,
+            fetchPolicy: GetFetchPolicy.serverOnly,
+            fromFirestore: fromFirestore,
+          ),
+        ).switchMap((_) {
+          return streamDocument(
+            ref,
+            fetchPolicy: StreamFetchPolicy.cacheAndServer,
+            fromFirestore: fromFirestore,
+          );
+        });
       // A server and cache policy will read the data from both the server and cache simultaneously.
       // If a value is present in the cache first, it will deliver that data eagerly. It then listens
       // to subsequent cache and server updates.
       case StreamFetchPolicy.cacheAndServer:
-        final serverStream = ref.serverSnapshots();
         return MergeStream([
           // While waiting for the server data, keep returning changes to the cached data.
-          streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly)
-              .takeUntil(serverStream),
-          serverStream.cast<DocumentSnapshot<T?>>().switchMap((snap) {
-            return _updateFromSnap(snap, fromFirestore: fromFirestore).stream;
-          }),
+          streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly),
+          streamDocument(ref, fetchPolicy: StreamFetchPolicy.serverOnly)
           // The cache vs server streams can emit a duplicate event transitioning between them. Distinct the results
           // to remove that duplicate event.
         ]).distinct();
@@ -580,6 +590,20 @@ class Nimbostratus {
 
           final streams = snapshots.map((snapshot) => snapshot.stream).toList();
           return CombineLatestStream.list(streams);
+        });
+      case StreamFetchPolicy.cacheAndServerFirst:
+        return Stream.fromFuture(
+          getDocuments(
+            docQuery,
+            fetchPolicy: GetFetchPolicy.serverOnly,
+            fromFirestore: fromFirestore,
+          ),
+        ).switchMap((_) {
+          return streamDocuments(
+            docQuery,
+            fetchPolicy: StreamFetchPolicy.cacheAndServer,
+            fromFirestore: fromFirestore,
+          );
         });
       case StreamFetchPolicy.cacheAndServer:
         final serverStream = docQuery.serverSnapshots();
