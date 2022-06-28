@@ -1003,7 +1003,7 @@ void main() async {
           final docRef = store.collection('users').doc('alice');
           await docRef.set({
             'name': 'Alice',
-            'sources': [Source.cache.name],
+            'sources': [Source.server.name, Source.cache.name],
           });
 
           final stream = Nimbostratus.instance
@@ -1018,7 +1018,7 @@ void main() async {
             emitsInOrder([
               {
                 'name': 'Alice',
-                'sources': [Source.cache.name],
+                'sources': [Source.server.name, Source.cache.name],
               },
             ]),
           );
@@ -1030,7 +1030,7 @@ void main() async {
           final docRef = store.collection('users').doc('alice');
           await docRef.set({
             'name': 'Alice',
-            'sources': [Source.cache.name],
+            'sources': [Source.server.name, Source.cache.name],
           });
 
           final stream = Nimbostratus.instance
@@ -1045,7 +1045,7 @@ void main() async {
             emitsInOrder([
               {
                 'name': 'Alice',
-                'sources': [Source.cache.name],
+                'sources': [Source.server.name, Source.cache.name],
               },
               {
                 'name': 'Bob',
@@ -2036,6 +2036,55 @@ void main() async {
           await store.collection('users').doc('bob').set({
             'name': 'Bob',
             'sources': [Source.server.name],
+          });
+        });
+      });
+
+      group('with duplicate data', () {
+        test('should filter out duplicate events', () async {
+          final docRef = store.collection('users').doc('alice');
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name, Source.server.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocuments(
+                store.collection('users'),
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
+            emitsInOrder([
+              [
+                {
+                  'name': 'Alice',
+                  'sources': [Source.cache.name, Source.server.name],
+                }
+              ],
+              [
+                {
+                  'name': 'Alice 2',
+                  'sources': [Source.cache.name, Source.server.name],
+                }
+              ],
+            ]),
+          );
+
+          await stream.first;
+
+          // This event is not emitted because the deepEq check in _updateFromRef will
+          // filter out the change.
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name, Source.server.name],
+          });
+
+          await docRef.set({
+            'name': 'Alice 2',
+            'sources': [Source.cache.name, Source.server.name],
           });
         });
       });

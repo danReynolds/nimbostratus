@@ -550,13 +550,15 @@ class Nimbostratus {
           // to remove that duplicate event.
         ]).distinct();
       case StreamFetchPolicy.cacheAndServerOnce:
-        final serverStream = ref.serverSnapshots().take(1);
+        final serverStream = streamDocument(
+          ref,
+          fetchPolicy: StreamFetchPolicy.serverFirst,
+          fromFirestore: fromFirestore,
+        ).asBroadcastStream();
         return MergeStream([
           streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly)
               .takeUntil(serverStream),
-          serverStream.cast<DocumentSnapshot<T?>>().switchMap((snap) {
-            return _updateFromSnap(snap, fromFirestore: fromFirestore).stream;
-          }),
+          serverStream,
         ]).distinct();
       case StreamFetchPolicy.serverOnly:
         return ref.serverSnapshots().switchMap((snap) {
@@ -630,21 +632,17 @@ class Nimbostratus {
           }),
         ]);
       case StreamFetchPolicy.cacheAndServerOnce:
-        final serverStream = docQuery.serverSnapshots().take(1);
+        final serverStream = streamDocuments(
+          docQuery,
+          fetchPolicy: StreamFetchPolicy.serverFirst,
+          fromFirestore: fromFirestore,
+        ).asBroadcastStream();
         return MergeStream([
           streamDocuments(
             docQuery,
             fetchPolicy: StreamFetchPolicy.cacheOnly,
           ).takeUntil(serverStream),
-          serverStream.switchMap((snap) {
-            final docSnaps = snap.docs;
-            final streams = docSnaps
-                .map((docSnap) =>
-                    _updateFromSnap(docSnap, fromFirestore: fromFirestore)
-                        .stream)
-                .toList();
-            return CombineLatestStream.list(streams);
-          }),
+          serverStream,
         ]);
       case StreamFetchPolicy.serverOnly:
         return docQuery.serverSnapshots().switchMap((snap) {
