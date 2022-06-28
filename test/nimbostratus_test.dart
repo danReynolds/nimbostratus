@@ -2081,6 +2081,43 @@ void main() async {
         });
       });
 
+      group('with cache-then-server data', () {
+        test('should only stream the server data', () async {
+          final docRef = store.collection('users').doc('alice');
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name],
+          });
+
+          final stream = Nimbostratus.instance
+              .streamDocuments(
+                store.collection('users'),
+                fetchPolicy: fetchPolicy,
+              )
+              .asBroadcastStream();
+
+          expectLater(
+            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
+            emitsInOrder([
+              [],
+              [
+                {
+                  'name': 'Alice',
+                  'sources': [Source.server.name],
+                }
+              ],
+            ]),
+          );
+
+          await stream.first;
+
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.server.name],
+          });
+        });
+      });
+
       group('with server-then-cache', () {
         test('should stream the server and then the cached data', () async {
           final docRef = store.collection('users').doc('alice');
@@ -2166,54 +2203,6 @@ void main() async {
 
           await docRef.set({
             'name': 'Alice 2',
-            'sources': [Source.server.name],
-          });
-        });
-      });
-
-      group('with later server data', () {
-        test('should later stream the server data', () async {
-          final docRef = store.collection('users').doc('alice');
-
-          final stream = Nimbostratus.instance
-              .streamDocuments(
-                store.collection('users'),
-                fetchPolicy: fetchPolicy,
-              )
-              .asBroadcastStream();
-
-          expectLater(
-            stream.map((docs) => docs.map((doc) => doc.data()).toList()),
-            emitsInOrder([
-              [],
-              [
-                {
-                  'name': 'Alice',
-                  'sources': [Source.server.name],
-                },
-              ],
-              [
-                {
-                  'name': 'Alice',
-                  'sources': [Source.server.name],
-                },
-                {
-                  'name': 'Bob',
-                  'sources': [Source.server.name],
-                },
-              ]
-            ]),
-          );
-
-          await stream.first;
-
-          await docRef.set({
-            'name': 'Alice',
-            'sources': [Source.server.name],
-          });
-
-          await store.collection('users').doc('bob').set({
-            'name': 'Bob',
             'sources': [Source.server.name],
           });
         });
