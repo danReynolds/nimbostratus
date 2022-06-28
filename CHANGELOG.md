@@ -1,3 +1,7 @@
+## 0.1.1
+
+Rework of cacheAndServerFirst to remove duplicate event.
+
 ## 0.1.0
 
 Adds a cacheAndServerFirst stream fetch policy.

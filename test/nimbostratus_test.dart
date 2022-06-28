@@ -1144,6 +1144,7 @@ void main() async {
       group('with cache-then-server data', () {
         test('should only emit the later server data', () async {
           final docRef = store.collection('users').doc('alice');
+
           final stream = Nimbostratus.instance
               .streamDocument(
                 docRef,
@@ -1151,21 +1152,23 @@ void main() async {
               )
               .asBroadcastStream();
 
+          await docRef.set({
+            'name': 'Alice',
+            'sources': [Source.cache.name],
+          });
+
           expectLater(
             stream.map((snap) => snap.data()),
             emitsInOrder([
-              null,
               {
-                'name': 'Alice',
+                'name': 'Alice 2',
                 'sources': [Source.cache.name, Source.server.name],
               },
             ]),
           );
 
-          await stream.first;
-
           await docRef.set({
-            'name': 'Alice',
+            'name': 'Alice 2',
             'sources': [Source.cache.name, Source.server.name],
           });
         });

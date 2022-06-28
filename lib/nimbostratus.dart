@@ -525,16 +525,14 @@ class Nimbostratus {
               .cast<NimbostratusDocumentSnapshot<T?>>();
         });
       case StreamFetchPolicy.cacheAndServerFirst:
-        return Stream.fromFuture(
-          getDocument(
-            ref,
-            fetchPolicy: GetFetchPolicy.serverOnly,
-            fromFirestore: fromFirestore,
-          ),
+        return streamDocument(
+          ref,
+          fetchPolicy: StreamFetchPolicy.serverOnly,
+          fromFirestore: fromFirestore,
         ).switchMap((_) {
           return streamDocument(
             ref,
-            fetchPolicy: StreamFetchPolicy.cacheAndServer,
+            fetchPolicy: StreamFetchPolicy.cacheOnly,
             fromFirestore: fromFirestore,
           );
         });
@@ -594,18 +592,17 @@ class Nimbostratus {
           return CombineLatestStream.list(streams);
         });
       case StreamFetchPolicy.cacheAndServerFirst:
-        return Stream.fromFuture(
-          getDocuments(
-            docQuery,
-            fetchPolicy: GetFetchPolicy.serverOnly,
-            fromFirestore: fromFirestore,
-          ),
-        ).switchMap((_) {
-          return streamDocuments(
-            docQuery,
-            fetchPolicy: StreamFetchPolicy.cacheAndServer,
-            fromFirestore: fromFirestore,
-          );
+        return streamDocuments(
+          docQuery,
+          fetchPolicy: StreamFetchPolicy.serverOnly,
+          fromFirestore: fromFirestore,
+        ).switchMap((snapshots) {
+          if (snapshots.isEmpty) {
+            return Stream.value([]);
+          }
+
+          final streams = snapshots.map((snapshot) => snapshot.stream).toList();
+          return CombineLatestStream.list(streams);
         });
       case StreamFetchPolicy.cacheAndServer:
         final serverStream = docQuery.serverSnapshots();
