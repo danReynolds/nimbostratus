@@ -559,7 +559,7 @@ class Nimbostratus {
           serverStream,
         ]).distinct();
       case StreamFetchPolicy.serverOnly:
-        return ref.serverSnapshots<T>().switchMap((snap) {
+        return ref.serverSnapshots().switchMap((snap) {
           return Stream.value(
             _updateFromSnap(snap, fromFirestore: fromFirestore),
           );

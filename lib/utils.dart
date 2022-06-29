@@ -6,7 +6,8 @@ extension DocumentServerSnapshots<T> on DocumentReference<T> {
     // since otherwise if the server data has not changed from the cached data, it would not emit the
     // server event as denoted by an `isFromCache` value of false.
     return snapshots(includeMetadataChanges: true)
-        .where((snap) => !snap.metadata.isFromCache);
+        .where((snap) => !snap.metadata.isFromCache)
+        .cast<DocumentSnapshot<T>>();
   }
 }
 
