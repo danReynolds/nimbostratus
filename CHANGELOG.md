@@ -1,3 +1,8 @@
+
+## 0.1.2
+
+Fix cast issue with refactor.
+
 ## 0.1.1
 
 Rework of cacheAndServerFirst to remove duplicate event.
