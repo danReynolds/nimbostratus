@@ -1,4 +1,8 @@
 
+## 0.1.3
+
+Additional fromFirestore argument passing bugfix.
+
 ## 0.1.2
 
 Fix cast issue with refactor.
