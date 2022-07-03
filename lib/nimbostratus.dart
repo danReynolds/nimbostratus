@@ -530,11 +530,7 @@ class Nimbostratus {
           fetchPolicy: StreamFetchPolicy.serverOnly,
           fromFirestore: fromFirestore,
         ).switchMap((_) {
-          return streamDocument(
-            ref,
-            fetchPolicy: StreamFetchPolicy.cacheOnly,
-            fromFirestore: fromFirestore,
-          );
+          return streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly);
         });
       // A server and cache policy will read the data from both the server and cache simultaneously.
       // If a value is present in the cache first, it will deliver that data eagerly. It then listens
@@ -543,7 +539,11 @@ class Nimbostratus {
         return MergeStream([
           // While waiting for the server data, keep returning changes to the cached data.
           streamDocument(ref, fetchPolicy: StreamFetchPolicy.cacheOnly),
-          streamDocument(ref, fetchPolicy: StreamFetchPolicy.serverOnly)
+          streamDocument(
+            ref,
+            fetchPolicy: StreamFetchPolicy.serverOnly,
+            fromFirestore: fromFirestore,
+          )
           // The cache vs server streams can emit a duplicate event transitioning between them. Distinct the results
           // to remove that duplicate event.
         ]).distinct();
