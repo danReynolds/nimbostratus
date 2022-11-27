@@ -2592,6 +2592,7 @@ void main() async {
     group('with a server-first write policy', () {
       test('should update the server and then the cache', () async {
         final docRef = store.collection('users').doc('alice');
+        store.saveDocument(docRef.path);
 
         final stream = Nimbostratus.instance
             .streamDocument(
@@ -2637,6 +2638,7 @@ void main() async {
     group('with a cache-and-server write policy', () {
       test('should update both the cache and server', () async {
         final docRef = store.collection('users').doc('alice');
+        store.saveDocument(docRef.path);
 
         final stream = Nimbostratus.instance
             .streamDocument(
@@ -2752,6 +2754,8 @@ void main() async {
 
         await stream.first;
 
+        store.saveDocument(docRef.path);
+
         final snap = await Nimbostratus.instance.updateDocument<MockUserModel>(
           docRef,
           MockUserModel(name: 'Alice'),
@@ -2775,6 +2779,7 @@ void main() async {
     group('without an existing value for the document', () {
       test('should write the document', () async {
         final docRef = store.collection('users').doc('alice');
+        store.saveDocument(docRef.path);
 
         final stream = Nimbostratus.instance
             .streamDocument(
