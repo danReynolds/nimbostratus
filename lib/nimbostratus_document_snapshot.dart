@@ -46,8 +46,8 @@ class NimbostratusDocumentSnapshot<T> implements DocumentSnapshot<T> {
   @override
   dynamic operator [](Object field) => get(field);
 
-  NimbostratusDocumentSnapshot<T?> withValue(T? value) {
-    return NimbostratusDocumentSnapshot<T?>(
+  NimbostratusDocumentSnapshot<T> withValue(T? value) {
+    return NimbostratusDocumentSnapshot<T>(
       reference: reference,
       value: value,
       stream: stream,

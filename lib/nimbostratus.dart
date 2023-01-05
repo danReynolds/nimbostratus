@@ -2,6 +2,7 @@ library nimbostratus;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:nimbostratus/nimbostratus_document_snapshot.dart';
 import 'package:nimbostratus/nimbostratus_state_bloc.dart';
 import 'package:nimbostratus/nimbostratus_update_batcher.dart';
@@ -418,7 +419,18 @@ class Nimbostratus {
         // First try to read the document from the NS cache, falling back to the Firestore cache.
         final docBloc = _documents[docRef.path];
         if (docBloc != null) {
-          return docBloc.value as NimbostratusDocumentSnapshot<T?>;
+          try {
+            final value = docBloc.value;
+
+            if (value is NimbostratusDocumentSnapshot<T?>) {
+              return value;
+            }
+            return _updateFromRef(reference: docRef, value: null);
+          } catch (e) {
+            if (kDebugMode) {
+              print('Error reading document');
+            }
+          }
         }
 
         try {

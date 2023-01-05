@@ -2,8 +2,8 @@ import 'package:nimbostratus/nimbostratus_document_snapshot.dart';
 import 'package:restate/restate.dart';
 
 class NimbostratusStateBloc<T>
-    extends StateBloc<NimbostratusDocumentSnapshot<T?>> {
-  NimbostratusStateBloc([NimbostratusDocumentSnapshot<T?>? initialValue])
+    extends StateBloc<NimbostratusDocumentSnapshot<T>> {
+  NimbostratusStateBloc([NimbostratusDocumentSnapshot<T>? initialValue])
       : super(initialValue);
 
   @override
@@ -23,14 +23,14 @@ class NimbostratusStateBloc<T>
   }
 
   // Replay an optimistic snap on the stream after a rollback.
-  void _replay(NimbostratusDocumentSnapshot<T?> snap) {
+  void _replay(NimbostratusDocumentSnapshot<T> snap) {
     super.add(snap);
   }
 
   /// Rolls back the supplied optimistic snapshot. If the snapshot being rolled back is the current
   /// value on the stream, then the snapshot that was chronologically emitted before it becomes the most logical current value
   /// for the stream and it is replayed on the stream.
-  void rollback(NimbostratusDocumentSnapshot<T?> snap) {
+  void rollback(NimbostratusDocumentSnapshot<T> snap) {
     assert(
       snap.isOptimistic,
       'Attempted to rollback a non-optimistic snap',
