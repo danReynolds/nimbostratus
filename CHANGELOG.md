@@ -1,7 +1,10 @@
+## 0.1.5
+
+Clear out old objects from in memory cache when a type mismatch is encountered.
+
 ## 0.1.4
 
 Type cleanups.
-
 
 ## 0.1.3
 

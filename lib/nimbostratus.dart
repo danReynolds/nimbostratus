@@ -52,7 +52,15 @@ class Nimbostratus {
     bool isOptimistic = false,
     NimbostratusFromFirestore<T>? fromFirestore,
   }) {
-    var bloc = _documents[reference.path] as NimbostratusStateBloc<T?>?;
+    var bloc = _documents[reference.path];
+
+    if (bloc is! NimbostratusStateBloc<T?>?) {
+      if (kDebugMode) {
+        print('Error updating ref');
+      }
+      _documents.remove(reference.path);
+      bloc = null;
+    }
 
     if (bloc == null) {
       _documents[reference.path] = bloc = NimbostratusStateBloc<T?>();
