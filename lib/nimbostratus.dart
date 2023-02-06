@@ -155,7 +155,12 @@ class Nimbostratus {
 
     try {
       await updateCallback(batcher);
-      batcher.commitOptimisticUpdates();
+
+      // Once the callback function returns, if the batch was not explicitly committed
+      // in the callback, do it automatically now.
+      if (!batcher.isCommitted) {
+        await batcher.commit();
+      }
     } catch (e) {
       batcher.rollback();
     }
@@ -289,8 +294,15 @@ class Nimbostratus {
         if (batch != null) {
           batch.update(ref, serializedData);
           batch.onCommit(() async {
-            final snap = await ref.get(const GetOptions(source: Source.cache));
-            _updateFromSnap(snap, fromFirestore: fromFirestore);
+            try {
+              final snap =
+                  await ref.get(const GetOptions(source: Source.cache));
+              _updateFromSnap(snap, fromFirestore: fromFirestore);
+            } catch (e) {
+              if (kDebugMode) {
+                print('Failed to read committed ref ${ref.path} from cache.');
+              }
+            }
           });
           return getDocument(ref, fetchPolicy: GetFetchPolicy.cacheOnly);
         } else {

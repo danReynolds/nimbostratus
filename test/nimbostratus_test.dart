@@ -3020,9 +3020,48 @@ void main() async {
           ),
         );
       });
+
+      test('should automatically commit the changes when the callback resolves',
+          () async {
+        final docRef = store.collection('users').doc('alice');
+
+        await docRef.set({
+          "name": 'Alice',
+          "sources": [Source.cache.name, Source.server.name],
+        });
+
+        await Nimbostratus.instance.batchUpdateDocuments((batcher) async {
+          await batcher.modify<Map<String, dynamic>>(docRef, (data) {
+            return {
+              ...data!,
+              "age": 22,
+            };
+          });
+
+          await batcher.update<Map<String, dynamic>>(docRef, {
+            "name": "Alice 2",
+          });
+        });
+
+        final snap = await Nimbostratus.instance.getDocument(
+          docRef,
+          fetchPolicy: GetFetchPolicy.cacheOnly,
+        );
+
+        expect(
+          snap.data(),
+          equals(
+            {
+              "name": "Alice 2",
+              "age": 22,
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ),
+        );
+      });
     });
 
-    group('with optimistic changes', () {
+    group('with cache-first changes', () {
       test(
           'should optimistically update the cache before the data is committed',
           () async {

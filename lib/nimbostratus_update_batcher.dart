@@ -7,6 +7,12 @@ import 'package:nimbostratus/utils.dart';
 /// the Nimbostratus in-memory cache.
 class NimbostratusWriteBatch implements WriteBatch {
   final WriteBatch batch;
+
+  // Whether the batch has been committed to the server.
+  bool _isCommitted = false;
+  // Whether the batch has uncommitted changes.
+  bool _hasUncommittedChanges = false;
+
   final List<Future<void> Function()> listeners = [];
 
   NimbostratusWriteBatch({
@@ -19,10 +25,21 @@ class NimbostratusWriteBatch implements WriteBatch {
 
   @override
   Future<void> commit() async {
+    if (!_hasUncommittedChanges || isCommitted) {
+      return;
+    }
+
+    _isCommitted = true;
+    _hasUncommittedChanges = false;
     await batch.commit();
+
     for (var callback in listeners) {
       await callback();
     }
+  }
+
+  bool get isCommitted {
+    return _isCommitted;
   }
 
   @override
@@ -33,12 +50,20 @@ class NimbostratusWriteBatch implements WriteBatch {
     DocumentReference<T> document,
     T data, [
     SetOptions? options,
-  ]) =>
-      batch.set(document, data, options);
+  ]) {
+    if (!_hasUncommittedChanges) {
+      _hasUncommittedChanges = true;
+    }
+    return batch.set(document, data, options);
+  }
 
   @override
-  void update(DocumentReference document, Map<String, dynamic> data) =>
-      batch.update(document, data);
+  void update(DocumentReference document, Map<String, dynamic> data) {
+    if (!_hasUncommittedChanges) {
+      _hasUncommittedChanges = true;
+    }
+    return batch.update(document, data);
+  }
 }
 
 class NimbostratusUpdateBatcher {
@@ -162,6 +187,10 @@ class NimbostratusUpdateBatcher {
       snap.isOptimistic = false;
     }
     _batchOpimisticSnapshots.clear();
+  }
+
+  bool get isCommitted {
+    return _batch.isCommitted;
   }
 
   Future<void> commit() async {

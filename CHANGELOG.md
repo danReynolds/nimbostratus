@@ -1,3 +1,7 @@
+## 0.1.6
+
+Automatically commit changes in `batchUpdateDocuments` on resolution of the callback.
+
 ## 0.1.5
 
 Clear out old objects from in memory cache when a type mismatch is encountered.
