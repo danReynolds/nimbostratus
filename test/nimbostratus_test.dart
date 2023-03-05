@@ -2586,6 +2586,50 @@ void main() async {
         );
       });
     });
+
+    group('with a server-only write policy', () {
+      test('should only write to the server', () async {
+        final docRef = store.collection('users').doc('alice');
+
+        final stream = Nimbostratus.instance
+            .streamDocument(
+              docRef,
+              fetchPolicy: StreamFetchPolicy.cacheOnly,
+            )
+            .asBroadcastStream();
+
+        expectLater(
+          stream.map((snap) => snap.data()),
+          emitsInOrder([
+            null,
+            {
+              "name": "Alice 2",
+              "sources": [Source.cache.name, Source.server.name],
+            },
+          ]),
+        );
+
+        await stream.first;
+
+        await Nimbostratus.instance.setDocument(
+          store.collection('users').doc('alice'),
+          {
+            "name": "Alice",
+            "sources": [Source.server.name],
+          },
+          writePolicy: WritePolicy.serverOnly,
+        );
+
+        await Nimbostratus.instance.setDocument(
+          store.collection('users').doc('alice'),
+          {
+            "name": "Alice 2",
+            "sources": [Source.cache.name, Source.server.name],
+          },
+          writePolicy: WritePolicy.cacheAndServer,
+        );
+      });
+    });
   });
 
   group('updateDocument', () {

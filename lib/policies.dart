@@ -52,7 +52,10 @@ enum WritePolicy {
   cacheAndServer,
 
   // Specifies that the data should be written to the server first, followed by the cache when the write to the server completes.
-  serverFirst
+  serverFirst,
+
+  // Specifies that data should be written to the server but not the in-memory cache.
+  serverOnly
 }
 
 enum DeletePolicy {

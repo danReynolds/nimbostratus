@@ -1,3 +1,7 @@
+## 0.1.7
+
+Add support for a `serverOnly` write policy.
+
 ## 0.1.6
 
 Automatically commit changes in `batchUpdateDocuments` on resolution of the callback.

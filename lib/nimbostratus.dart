@@ -250,6 +250,13 @@ class Nimbostratus {
             isOptimistic: isOptimistic,
           );
         }
+      case WritePolicy.serverOnly:
+        await ref.set(data, options);
+        return NimbostratusDocumentSnapshot<T>(
+          value: null,
+          stream: const Stream.empty(),
+          reference: ref,
+        );
     }
   }
 
@@ -350,6 +357,23 @@ class Nimbostratus {
             isOptimistic: isOptimistic,
           );
         }
+      case WritePolicy.serverOnly:
+        final serializedData = serializeData(
+          data: data,
+          toFirestore: toFirestore,
+        );
+
+        if (batch != null) {
+          batch.update(ref, serializedData);
+        } else {
+          await ref.update(serializedData);
+        }
+
+        return NimbostratusDocumentSnapshot<T>(
+          value: null,
+          stream: const Stream.empty(),
+          reference: ref,
+        );
     }
   }
 
