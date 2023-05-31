@@ -1,3 +1,7 @@
+## 0.1.8
+
+Update exception handling now that `FirebaseException` is not thrown.
+
 ## 0.1.7
 
 Add support for a `serverOnly` write policy.

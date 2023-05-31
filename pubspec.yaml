@@ -1,6 +1,6 @@
 name: nimbostratus
 description: Nimbostratus is a reactive data-fetching and client-side cache management library built on top of Cloud Firestore.
-version: 0.1.7
+version: 0.1.8
 homepage: https://github.com/danReynolds/nimbostratus
 
 environment:

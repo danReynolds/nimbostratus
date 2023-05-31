@@ -243,7 +243,7 @@ class Nimbostratus {
             isOptimistic: isOptimistic,
           );
           // An exception is thrown if the document doesn't yet exist in the cache.
-        } on FirebaseException {
+        } catch (e) {
           return _updateFromRef(
             value: data,
             reference: ref,
@@ -350,7 +350,7 @@ class Nimbostratus {
             isOptimistic: isOptimistic,
           );
           // An exception is thrown if the document doesn't yet exist in the cache.
-        } on FirebaseException {
+        } catch (e) {
           return _updateFromRef(
             value: data,
             reference: ref,
@@ -488,7 +488,7 @@ class Nimbostratus {
             throw FirebaseException(plugin: 'missing_document');
           }
           // ignore: empty_catches.
-        } on FirebaseException {
+        } catch (e) {
           if (fetchPolicy == GetFetchPolicy.cacheFirst) {
             return getDocument(
               docRef,
@@ -503,7 +503,7 @@ class Nimbostratus {
         try {
           final snap = await docRef.get();
           return _updateFromSnap(snap, fromFirestore: fromFirestore);
-        } on FirebaseException {
+        } catch (e) {
           return _updateFromRef(value: null, reference: docRef);
         }
     }
@@ -553,7 +553,7 @@ class Nimbostratus {
                 (snap) => _updateFromSnap(snap, fromFirestore: fromFirestore),
               )
               .toList();
-        } on FirebaseException {
+        } catch (e) {
           return [];
         }
     }
